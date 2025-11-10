@@ -24,6 +24,7 @@ import EventIcon from '@mui/icons-material/Event';
 import TitleIcon from '@mui/icons-material/Title';
 import BetCard from '@/components/BetCard';
 import { useToast } from '@/components/ToastProvider';
+import { motion, AnimatePresence } from 'framer-motion';
 
 interface Bet {
   _id: string;
@@ -123,56 +124,111 @@ export default function BetsPage() {
 
   return (
     <Container maxWidth="lg" sx={{ py: 4 }}>
-      <Box display="flex" justifyContent="space-between" alignItems="center" mb={4}>
-        <Box>
-          <Typography variant="h4" component="h1" fontWeight={700} gutterBottom>
-            My Bets
-          </Typography>
-          <Typography variant="body2" color="text.secondary">
-            Track and manage your betting activity
-          </Typography>
+      <motion.div
+        initial={{ opacity: 0, y: -30 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.6 }}
+      >
+        <Box display="flex" justifyContent="space-between" alignItems="center" mb={4} flexWrap="wrap" gap={2}>
+          <Box>
+            <Typography 
+              variant="h4" 
+              component="h1" 
+              fontWeight={700} 
+              gutterBottom
+              sx={{
+                background: 'linear-gradient(135deg, #6366f1 0%, #ec4899 100%)',
+                backgroundClip: 'text',
+                WebkitBackgroundClip: 'text',
+                WebkitTextFillColor: 'transparent',
+              }}
+            >
+              My Bets
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+              Track and manage your betting activity
+            </Typography>
+          </Box>
+          <Button
+            variant="contained"
+            size="large"
+            startIcon={<AddIcon />}
+            onClick={() => setCreateOpen(true)}
+            sx={{ 
+              px: 3, 
+              py: 1.5,
+              background: 'linear-gradient(135deg, #6366f1 0%, #ec4899 100%)',
+              boxShadow: '0 8px 32px rgba(99, 102, 241, 0.3)',
+              '&:hover': {
+                background: 'linear-gradient(135deg, #4f46e5 0%, #db2777 100%)',
+                boxShadow: '0 12px 40px rgba(99, 102, 241, 0.4)',
+                transform: 'translateY(-2px)',
+              },
+              transition: 'all 0.3s ease',
+            }}
+          >
+            Create Bet
+          </Button>
         </Box>
-        <Button
-          variant="contained"
-          size="large"
-          startIcon={<AddIcon />}
-          onClick={() => setCreateOpen(true)}
-          sx={{ px: 3, py: 1.5 }}
-        >
-          Create Bet
-        </Button>
-      </Box>
+      </motion.div>
 
       {loading ? (
         <Box display="flex" justifyContent="center" alignItems="center" minHeight={200}>
-          <CircularProgress />
+          <CircularProgress sx={{ color: '#6366f1' }} />
         </Box>
       ) : bets.length === 0 ? (
-        <Paper sx={{ p: 6, textAlign: 'center' }}>
-          <Typography variant="h6" color="text.secondary" gutterBottom>
-            No bets yet
-          </Typography>
-          <Typography variant="body2" color="text.secondary" mb={3}>
-            Create your first bet to start tracking your performance
-          </Typography>
-          <Button
-            variant="contained"
-            startIcon={<AddIcon />}
-            onClick={() => setCreateOpen(true)}
-          >
-            Create Your First Bet
-          </Button>
-        </Paper>
+        <motion.div
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ duration: 0.5 }}
+        >
+          <Paper sx={{ p: 6, textAlign: 'center', borderRadius: 3 }}>
+            <Typography variant="h6" color="text.secondary" gutterBottom>
+              No bets yet
+            </Typography>
+            <Typography variant="body2" color="text.secondary" mb={3}>
+              Create your first bet to start tracking your performance
+            </Typography>
+            <Button
+              variant="contained"
+              startIcon={<AddIcon />}
+              onClick={() => setCreateOpen(true)}
+              sx={{
+                background: 'linear-gradient(135deg, #6366f1 0%, #ec4899 100%)',
+                boxShadow: '0 8px 32px rgba(99, 102, 241, 0.3)',
+                '&:hover': {
+                  background: 'linear-gradient(135deg, #4f46e5 0%, #db2777 100%)',
+                  boxShadow: '0 12px 40px rgba(99, 102, 241, 0.4)',
+                  transform: 'translateY(-2px)',
+                },
+                transition: 'all 0.3s ease',
+              }}
+            >
+              Create Your First Bet
+            </Button>
+          </Paper>
+        </motion.div>
       ) : (
-        <Box>
-          {bets.map((bet) => (
-            <BetCard
-              key={bet._id}
-              bet={bet}
-              onUpdate={fetchBets}
-            />
-          ))}
-        </Box>
+        <AnimatePresence>
+          <Box>
+            {bets.map((bet, index) => (
+              <motion.div
+                key={bet._id}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -20 }}
+                transition={{ duration: 0.4, delay: index * 0.1 }}
+              >
+                <Box sx={{ mb: 3 }}>
+                  <BetCard
+                    bet={bet}
+                    onUpdate={fetchBets}
+                  />
+                </Box>
+              </motion.div>
+            ))}
+          </Box>
+        </AnimatePresence>
       )}
 
       {/* Enhanced Create Bet Dialog */}

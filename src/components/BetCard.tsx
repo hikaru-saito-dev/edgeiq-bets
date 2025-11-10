@@ -139,12 +139,16 @@ export default function BetCard({ bet, onUpdate }: BetCardProps) {
       <Card 
         sx={{ 
           mb: 2,
-          border: bet.locked ? '2px solid' : '1px solid',
-          borderColor: bet.locked ? 'warning.main' : 'divider',
-          transition: 'all 0.2s ease-in-out',
+          background: 'linear-gradient(135deg, rgba(15, 15, 35, 0.9), rgba(30, 30, 60, 0.8))',
+          backdropFilter: 'blur(20px)',
+          border: bet.locked ? '2px solid rgba(245, 158, 11, 0.5)' : '1px solid rgba(99, 102, 241, 0.3)',
+          borderRadius: 3,
+          boxShadow: '0 8px 32px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.1)',
+          transition: 'all 0.3s ease',
           '&:hover': {
-            boxShadow: 4,
-            transform: 'translateY(-2px)',
+            boxShadow: '0 12px 40px rgba(99, 102, 241, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.1)',
+            transform: 'translateY(-4px)',
+            borderColor: bet.locked ? 'rgba(245, 158, 11, 0.7)' : 'rgba(99, 102, 241, 0.5)',
           }
         }}
       >
@@ -296,6 +300,44 @@ export default function BetCard({ bet, onUpdate }: BetCardProps) {
                 </Button>
               );
             })()}
+            {/* Delete button, only for bets that are not locked and not settled */}
+            {bet.result === 'pending' && !bet.locked && (
+              <Button
+                variant="outlined"
+                color="error"
+                size="small"
+                disabled={loading}
+                onClick={async () => {
+                  if (!window.confirm('Are you sure you want to delete this bet?')) return;
+                  setLoading(true);
+                  try {
+                    const res = await fetch('/api/bets', {
+                      method: 'DELETE',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ betId: bet._id })
+                    });
+                    if (res.ok) {
+                      toast.showSuccess('Bet deleted.');
+                      if (onUpdate) onUpdate();
+                    } else {
+                      const error = await res.json();
+                      toast.showError(error.error || 'Failed to delete bet');
+                    }
+                  } catch (err) {
+                    if (err instanceof Error) {
+                      toast.showError(err.message);
+                    } else {
+                      toast.showError('Failed to delete bet');
+                    }
+                  } finally {
+                    setLoading(false);
+                  }
+                }}
+                style={{ marginLeft: 8 }}
+              >
+                Delete
+              </Button>
+            )}
           </Box>
         </CardContent>
       </Card>

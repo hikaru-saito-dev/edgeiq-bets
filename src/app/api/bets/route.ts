@@ -336,3 +336,64 @@ export async function PUT(request: NextRequest) {
   }
 }
 
+/**
+ * DELETE /api/bets
+ * Delete a bet for the authenticated user (only before event starts)
+ */
+export async function DELETE(request: NextRequest) {
+  try {
+    await connectDB();
+    const headers = await import('next/headers').then(m => m.headers());
+    const authInfo = await verifyWhopUser(headers);
+    
+    if (!authInfo) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const { userId, companyId } = authInfo;
+    const body = await request.json();
+    const { betId } = body;
+
+    if (!betId) {
+      return NextResponse.json({ error: 'betId is required' }, { status: 400 });
+    }
+
+    const user = await User.findOne({ whopUserId: userId, companyId: companyId || 'default' });
+    if (!user) {
+      return NextResponse.json({ error: 'User not found' }, { status: 404 });
+    }
+
+    const bet = await Bet.findOne({ _id: betId, userId: user._id });
+    if (!bet) {
+      return NextResponse.json({ error: 'Bet not found' }, { status: 404 });
+    }
+
+    if (bet.locked || new Date() >= new Date(bet.startTime)) {
+      return NextResponse.json(
+        { error: 'Cannot delete bet after event start time.' },
+        { status: 403 }
+      );
+    }
+
+    await bet.deleteOne();
+    await Log.create({
+      userId: user._id,
+      betId: bet._id,
+      action: 'bet_deleted',
+      metadata: {},
+    });
+
+    // Optionally, recalculate stats
+    const allBets = await Bet.find({ userId: user._id }).lean();
+    await updateUserStats(user._id.toString(), allBets as unknown as IBet[]);
+
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    console.error('Error deleting bet:', error);
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    );
+  }
+}
+
