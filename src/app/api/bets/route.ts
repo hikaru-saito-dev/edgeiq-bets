@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import connectDB from '@/lib/db';
-import { verifyWhopUser } from '@/lib/whop';
+import { verifyWhopUser, getWhopCompany } from '@/lib/whop';
 import { Bet, IBet } from '@/models/Bet';
 import { User } from '@/models/User';
 import { Log } from '@/models/Log';
@@ -26,9 +26,30 @@ export async function GET() {
     const { userId, companyId } = authInfo;
 
     // Find or create user
-    const user = await User.findOne({ whopUserId: userId, companyId: companyId || 'default' });
+    let user = await User.findOne({ whopUserId: userId, companyId: companyId || 'default' });
     if (!user) {
-      return NextResponse.json({ error: 'User not found' }, { status: 404 });
+      // Get company info if available
+      let companyInfo = null;
+      if (companyId) {
+        companyInfo = await getWhopCompany(companyId);
+      }
+
+      // Create user if doesn't exist
+      user = await User.create({
+        whopUserId: userId,
+        companyId: companyId || 'default',
+        alias: `User ${userId.slice(0, 8)}`,
+        whopName: companyInfo?.name,
+        optIn: true,
+        membershipPlans: [],
+        stats: {
+          winRate: 0,
+          roi: 0,
+          unitsPL: 0,
+          currentStreak: 0,
+          longestStreak: 0,
+        },
+      });
     }
 
     // Get all bets for this user
