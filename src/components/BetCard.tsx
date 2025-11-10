@@ -14,6 +14,7 @@ import {
   Button,
   TextField,
   MenuItem,
+  CircularProgress,
 } from '@mui/material';
 import EditIcon from '@mui/icons-material/Edit';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
@@ -155,12 +156,12 @@ export default function BetCard({ bet, onUpdate }: BetCardProps) {
         <CardContent>
           <Box display="flex" justifyContent="space-between" alignItems="start" mb={2}>
             <Box flex={1}>
-              <Typography variant="h6" component="div" fontWeight={600} mb={0.5}>
+              <Typography variant="h6" component="div" fontWeight={600} mb={0.5} sx={{ color: '#ffffff' }}>
                 {bet.eventName}
               </Typography>
               <Box display="flex" alignItems="center" gap={1} mb={1}>
-                <EventIcon fontSize="small" color="action" />
-                <Typography variant="body2" color="text.secondary">
+                <EventIcon fontSize="small" sx={{ color: '#a1a1aa' }} />
+                <Typography variant="body2" sx={{ color: '#a1a1aa' }}>
                   {new Date(bet.startTime).toLocaleString()}
                 </Typography>
               </Box>
@@ -188,8 +189,8 @@ export default function BetCard({ bet, onUpdate }: BetCardProps) {
                 borderColor: 'warning.main'
               }}
             >
-              <LockIcon fontSize="small" color="warning" />
-              <Typography variant="caption" color="warning.dark" fontWeight={600}>
+              <LockIcon fontSize="small" sx={{ color: '#fbbf24' }} />
+              <Typography variant="caption" sx={{ color: '#fbbf24', fontWeight: 600 }}>
                 Locked - Event has started. No edits allowed.
               </Typography>
             </Box>
@@ -199,72 +200,76 @@ export default function BetCard({ bet, onUpdate }: BetCardProps) {
             <Box 
               sx={{ 
                 p: 1.5, 
-                bgcolor: 'primary.light', 
+                background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.2), rgba(99, 102, 241, 0.1))',
                 borderRadius: 2,
                 textAlign: 'center',
                 width: { xs: 'calc(50% - 8px)', sm: 'calc(25% - 12px)' },
-                minWidth: { xs: 'calc(50% - 8px)', sm: 'calc(25% - 12px)' }
+                minWidth: { xs: 'calc(50% - 8px)', sm: 'calc(25% - 12px)' },
+                border: '1px solid rgba(99, 102, 241, 0.3)',
               }}
             >
-              <TrendingUpIcon fontSize="small" color="primary" sx={{ mb: 0.5 }} />
-              <Typography variant="caption" display="block" color="text.secondary" fontWeight={600}>
+              <TrendingUpIcon fontSize="small" sx={{ mb: 0.5, color: '#818cf8' }} />
+              <Typography variant="caption" display="block" sx={{ color: '#a1a1aa', fontWeight: 600 }}>
                 Odds
               </Typography>
-              <Typography variant="h6" fontWeight={700} color="primary.dark">
+              <Typography variant="h6" fontWeight={700} sx={{ color: '#ffffff' }}>
                 {bet.odds.toFixed(2)}
               </Typography>
             </Box>
             <Box 
               sx={{ 
                 p: 1.5, 
-                bgcolor: 'success.light', 
+                background: 'linear-gradient(135deg, rgba(34, 197, 94, 0.2), rgba(34, 197, 94, 0.1))',
                 borderRadius: 2,
                 textAlign: 'center',
                 width: { xs: 'calc(50% - 8px)', sm: 'calc(25% - 12px)' },
-                minWidth: { xs: 'calc(50% - 8px)', sm: 'calc(25% - 12px)' }
+                minWidth: { xs: 'calc(50% - 8px)', sm: 'calc(25% - 12px)' },
+                border: '1px solid rgba(34, 197, 94, 0.3)',
               }}
             >
-              <AttachMoneyIcon fontSize="small" color="success" sx={{ mb: 0.5 }} />
-              <Typography variant="caption" display="block" color="text.secondary" fontWeight={600}>
+              <AttachMoneyIcon fontSize="small" sx={{ mb: 0.5, color: '#4ade80' }} />
+              <Typography variant="caption" display="block" sx={{ color: '#a1a1aa', fontWeight: 600 }}>
                 Units
               </Typography>
-              <Typography variant="h6" fontWeight={700} color="success.dark">
+              <Typography variant="h6" fontWeight={700} sx={{ color: '#ffffff' }}>
                 {bet.units.toFixed(2)}
               </Typography>
             </Box>
             <Box 
               sx={{ 
                 p: 1.5, 
-                bgcolor: 'info.light', 
+                background: 'linear-gradient(135deg, rgba(59, 130, 246, 0.2), rgba(59, 130, 246, 0.1))',
                 borderRadius: 2,
                 textAlign: 'center',
                 width: { xs: 'calc(50% - 8px)', sm: 'calc(25% - 12px)' },
-                minWidth: { xs: 'calc(50% - 8px)', sm: 'calc(25% - 12px)' }
+                minWidth: { xs: 'calc(50% - 8px)', sm: 'calc(25% - 12px)' },
+                border: '1px solid rgba(59, 130, 246, 0.3)',
               }}
             >
-              <CalculateIcon fontSize="small" color="info" sx={{ mb: 0.5 }} />
-              <Typography variant="caption" display="block" color="text.secondary" fontWeight={600}>
+              <CalculateIcon fontSize="small" sx={{ mb: 0.5, color: '#60a5fa' }} />
+              <Typography variant="caption" display="block" sx={{ color: '#a1a1aa', fontWeight: 600 }}>
                 Potential Win
               </Typography>
-              <Typography variant="h6" fontWeight={700} color="info.dark">
+              <Typography variant="h6" fontWeight={700} sx={{ color: '#ffffff' }}>
                 +{potentialPayout.toFixed(2)}
               </Typography>
             </Box>
             <Box 
               sx={{ 
                 p: 1.5, 
-                bgcolor: 'secondary.light', 
+                background: 'linear-gradient(135deg, rgba(236, 72, 153, 0.2), rgba(236, 72, 153, 0.1))',
                 borderRadius: 2,
                 textAlign: 'center',
                 width: { xs: 'calc(50% - 8px)', sm: 'calc(25% - 12px)' },
-                minWidth: { xs: 'calc(50% - 8px)', sm: 'calc(25% - 12px)' }
+                minWidth: { xs: 'calc(50% - 8px)', sm: 'calc(25% - 12px)' },
+                border: '1px solid rgba(236, 72, 153, 0.3)',
               }}
             >
-              <AttachMoneyIcon fontSize="small" color="secondary" sx={{ mb: 0.5 }} />
-              <Typography variant="caption" display="block" color="text.secondary" fontWeight={600}>
+              <AttachMoneyIcon fontSize="small" sx={{ mb: 0.5, color: '#f472b6' }} />
+              <Typography variant="caption" display="block" sx={{ color: '#a1a1aa', fontWeight: 600 }}>
                 Total Return
               </Typography>
-              <Typography variant="h6" fontWeight={700} color="secondary.dark">
+              <Typography variant="h6" fontWeight={700} sx={{ color: '#ffffff' }}>
                 {totalReturn.toFixed(2)}
               </Typography>
             </Box>
@@ -300,44 +305,52 @@ export default function BetCard({ bet, onUpdate }: BetCardProps) {
                 </Button>
               );
             })()}
-            {/* Delete button, only for bets that are not locked and not settled */}
-            {bet.result === 'pending' && !bet.locked && (
-              <Button
-                variant="outlined"
-                color="error"
-                size="small"
-                disabled={loading}
-                onClick={async () => {
-                  if (!window.confirm('Are you sure you want to delete this bet?')) return;
-                  setLoading(true);
-                  try {
-                    const res = await fetch('/api/bets', {
-                      method: 'DELETE',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({ betId: bet._id })
-                    });
-                    if (res.ok) {
-                      toast.showSuccess('Bet deleted.');
-                      if (onUpdate) onUpdate();
-                    } else {
-                      const error = await res.json();
-                      toast.showError(error.error || 'Failed to delete bet');
+            {/* Delete button, only for bets that are not locked, not settled, and before start time */}
+            {bet.result === 'pending' && (() => {
+              const now = new Date();
+              const startTime = new Date(bet.startTime);
+              const canDelete = !bet.locked && now < startTime;
+              
+              if (!canDelete) return null;
+              
+              return (
+                <Button
+                  variant="outlined"
+                  color="error"
+                  size="small"
+                  disabled={loading}
+                  onClick={async () => {
+                    if (!window.confirm('Are you sure you want to delete this bet?')) return;
+                    setLoading(true);
+                    try {
+                      const res = await fetch('/api/bets', {
+                        method: 'DELETE',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ betId: bet._id })
+                      });
+                      if (res.ok) {
+                        toast.showSuccess('Bet deleted.');
+                        if (onUpdate) onUpdate();
+                      } else {
+                        const error = await res.json();
+                        toast.showError(error.error || 'Failed to delete bet');
+                      }
+                    } catch (err) {
+                      if (err instanceof Error) {
+                        toast.showError(err.message);
+                      } else {
+                        toast.showError('Failed to delete bet');
+                      }
+                    } finally {
+                      setLoading(false);
                     }
-                  } catch (err) {
-                    if (err instanceof Error) {
-                      toast.showError(err.message);
-                    } else {
-                      toast.showError('Failed to delete bet');
-                    }
-                  } finally {
-                    setLoading(false);
-                  }
-                }}
-                style={{ marginLeft: 8 }}
-              >
-                Delete
-              </Button>
-            )}
+                  }}
+                  style={{ marginLeft: 8 }}
+                >
+                  Delete
+                </Button>
+              );
+            })()}
           </Box>
         </CardContent>
       </Card>
@@ -383,8 +396,19 @@ export default function BetCard({ bet, onUpdate }: BetCardProps) {
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setEditOpen(false)}>Cancel</Button>
-          <Button onClick={handleEdit} variant="contained" disabled={loading}>
-            Save
+          <Button 
+            onClick={handleEdit} 
+            variant="contained" 
+            disabled={loading}
+            startIcon={loading ? <CircularProgress size={16} sx={{ color: 'white' }} /> : null}
+            sx={{
+              background: loading ? 'rgba(99, 102, 241, 0.5)' : 'linear-gradient(135deg, #6366f1 0%, #ec4899 100%)',
+              '&:hover': {
+                background: loading ? 'rgba(99, 102, 241, 0.5)' : 'linear-gradient(135deg, #4f46e5 0%, #db2777 100%)',
+              },
+            }}
+          >
+            {loading ? 'Saving...' : 'Save'}
           </Button>
         </DialogActions>
       </Dialog>
@@ -409,8 +433,19 @@ export default function BetCard({ bet, onUpdate }: BetCardProps) {
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setSettleOpen(false)}>Cancel</Button>
-          <Button onClick={handleSettle} variant="contained" disabled={loading}>
-            Settle
+          <Button 
+            onClick={handleSettle} 
+            variant="contained" 
+            disabled={loading}
+            startIcon={loading ? <CircularProgress size={16} sx={{ color: 'white' }} /> : null}
+            sx={{
+              background: loading ? 'rgba(99, 102, 241, 0.5)' : 'linear-gradient(135deg, #6366f1 0%, #ec4899 100%)',
+              '&:hover': {
+                background: loading ? 'rgba(99, 102, 241, 0.5)' : 'linear-gradient(135deg, #4f46e5 0%, #db2777 100%)',
+              },
+            }}
+          >
+            {loading ? 'Settling...' : 'Settle'}
           </Button>
         </DialogActions>
       </Dialog>

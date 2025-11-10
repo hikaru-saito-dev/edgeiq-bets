@@ -173,8 +173,40 @@ export default function BetsPage() {
       </motion.div>
 
       {loading ? (
-        <Box display="flex" justifyContent="center" alignItems="center" minHeight={200}>
-          <CircularProgress sx={{ color: '#6366f1' }} />
+        <Box display="flex" flexDirection="column" alignItems="center" justifyContent="center" minHeight={400} gap={3}>
+          <motion.div
+            initial={{ opacity: 0, scale: 0.8 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ duration: 0.3 }}
+          >
+            <CircularProgress 
+              size={60}
+              thickness={4}
+              sx={{ 
+                color: '#6366f1',
+                filter: 'drop-shadow(0 0 10px rgba(99, 102, 241, 0.5))',
+              }} 
+            />
+          </motion.div>
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.3, delay: 0.1 }}
+          >
+            <Typography 
+              variant="h6" 
+              sx={{ 
+                color: '#a1a1aa',
+                fontWeight: 500,
+                background: 'linear-gradient(135deg, #6366f1 0%, #ec4899 100%)',
+                backgroundClip: 'text',
+                WebkitBackgroundClip: 'text',
+                WebkitTextFillColor: 'transparent',
+              }}
+            >
+              Loading your bets...
+            </Typography>
+          </motion.div>
         </Box>
       ) : bets.length === 0 ? (
         <motion.div
@@ -365,7 +397,13 @@ export default function BetsPage() {
             variant="contained" 
             disabled={submitting || !formData.eventName || !formData.startTime || !formData.odds || !formData.units}
             size="large"
-            startIcon={submitting ? <CircularProgress size={20} /> : <AddIcon />}
+            startIcon={submitting ? <CircularProgress size={20} sx={{ color: 'white' }} /> : <AddIcon />}
+            sx={{
+              background: submitting ? 'rgba(99, 102, 241, 0.5)' : 'linear-gradient(135deg, #6366f1 0%, #ec4899 100%)',
+              '&:hover': {
+                background: submitting ? 'rgba(99, 102, 241, 0.5)' : 'linear-gradient(135deg, #4f46e5 0%, #db2777 100%)',
+              },
+            }}
           >
             {submitting ? 'Creating...' : 'Create Bet'}
           </Button>
