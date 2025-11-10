@@ -293,6 +293,17 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: 'Bet not found' }, { status: 404 });
     }
 
+    // Validation: Cannot settle a bet before the event has started
+    const now = new Date();
+    const startTime = new Date(bet.startTime);
+    
+    if (now < startTime) {
+      return NextResponse.json(
+        { error: 'Cannot settle bet before event start time. The event must begin before you can mark the result.' },
+        { status: 400 }
+      );
+    }
+
     // Update bet result
     bet.result = validated.result;
     await bet.save();

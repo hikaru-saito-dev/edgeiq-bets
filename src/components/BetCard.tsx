@@ -278,16 +278,24 @@ export default function BetCard({ bet, onUpdate }: BetCardProps) {
                 Edit
               </Button>
             )}
-            {bet.result === 'pending' && (
-              <Button
-                variant="contained"
-                size="small"
-                onClick={() => setSettleOpen(true)}
-                color="primary"
-              >
-                Settle Bet
-              </Button>
-            )}
+            {bet.result === 'pending' && (() => {
+              const now = new Date();
+              const startTime = new Date(bet.startTime);
+              const canSettle = now >= startTime;
+              
+              return (
+                <Button
+                  variant="contained"
+                  size="small"
+                  onClick={() => setSettleOpen(true)}
+                  color="primary"
+                  disabled={!canSettle}
+                  title={!canSettle ? 'Cannot settle bet before event start time' : ''}
+                >
+                  Settle Bet
+                </Button>
+              );
+            })()}
           </Box>
         </CardContent>
       </Card>
