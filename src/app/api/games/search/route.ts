@@ -86,6 +86,7 @@ export async function GET(request: NextRequest) {
       providerEventId: string;
       sport: string;
       league: string;
+      sportKey?: string; // The Odds API sport_key (e.g., "americanfootball_nfl")
       homeTeam: string;
       awayTeam: string;
       homeTeamId?: string;
@@ -121,6 +122,7 @@ export async function GET(request: NextRequest) {
               providerEventId: event.id,
               sport: sportGroup || sportDisplayName,
               league: sportDisplayName,
+              sportKey: event.sport_key || sportKey, // Include sport_key from The Odds API
               homeTeam: event.home_team,
               awayTeam: event.away_team,
               homeTeamId: event.home_team,

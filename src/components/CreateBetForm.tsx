@@ -36,6 +36,7 @@ interface Game {
   providerEventId?: string;
   sport?: string;
   league?: string;
+  sportKey?: string; // The Odds API sport_key (e.g., "americanfootball_nfl")
   homeTeam?: string;
   awayTeam?: string;
   homeTeamId?: string;
@@ -152,8 +153,10 @@ export default function CreateBetForm({ open, onClose, onSuccess }: CreateBetFor
         if (teams.length > 0) {
           params.append('team', teams.join(','));
         }
-        // Map sport to API format
-        if (selectedGame.sport) {
+        // Use sport_key from The Odds API if available, otherwise fallback to sport mapping
+        if (selectedGame.sportKey) {
+          params.append('sportKey', selectedGame.sportKey);
+        } else if (selectedGame.sport) {
           const sportMap: Record<string, string> = {
             'NFL': 'nfl',
             'NBA': 'nba',

@@ -98,7 +98,8 @@ export async function GET(request: NextRequest) {
     const searchParams = request.nextUrl.searchParams;
     const query = searchParams.get('q') || '';
     const team = searchParams.get('team') || '';
-    const sport = searchParams.get('sport') || 'nfl';
+    const sportKey = searchParams.get('sportKey') || ''; // The Odds API sport_key (e.g., "americanfootball_nfl")
+    const sport = searchParams.get('sport') || 'nfl'; // Fallback
 
     const apiKey = process.env.PLAYER_API_KEY;
     if (!apiKey) {
@@ -108,17 +109,53 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Map sport to SportsData.io API path
-    const sportMap: Record<string, string> = {
-      nfl: 'nfl',
-      nba: 'nba',
-      mlb: 'mlb',
-      nhl: 'nhl',
-      ncaaf: 'ncaaf',
-      ncaab: 'ncaab',
-    };
+    // Map The Odds API sport_key to SportsData.io API path
+    // e.g., "americanfootball_nfl" -> "nfl", "basketball_nba" -> "nba"
+    function mapSportKeyToPath(sportKeyValue: string): string {
+      // Map The Odds API sport_key format to SportsData.io format
+      const oddsToSportsDataMap: Record<string, string> = {
+        'americanfootball_nfl': 'nfl',
+        'americanfootball_ncaaf': 'ncaaf',
+        'basketball_nba': 'nba',
+        'basketball_ncaab': 'ncaab',
+        'baseball_mlb': 'mlb',
+        'icehockey_nhl': 'nhl',
+        'soccer_usa_mls': 'mls',
+      };
 
-    const sportPath = sportMap[sport.toLowerCase()] || 'nfl';
+      // Extract sport from The Odds API format (e.g., "americanfootball_nfl" -> "nfl")
+      if (sportKeyValue.includes('_')) {
+        const parts = sportKeyValue.split('_');
+        const sportPart = parts[parts.length - 1]; // Get last part (e.g., "nfl")
+        
+        // Check if we have a direct mapping
+        if (oddsToSportsDataMap[sportKeyValue]) {
+          return oddsToSportsDataMap[sportKeyValue];
+        }
+        
+        // Try to use the last part directly if it's a valid sport
+        const validSports = ['nfl', 'nba', 'mlb', 'nhl', 'ncaaf', 'ncaab', 'mls'];
+        if (validSports.includes(sportPart.toLowerCase())) {
+          return sportPart.toLowerCase();
+        }
+      }
+
+      // Fallback: try to extract from sport_key
+      const lowerKey = sportKeyValue.toLowerCase();
+      if (lowerKey.includes('nfl')) return 'nfl';
+      if (lowerKey.includes('nba')) return 'nba';
+      if (lowerKey.includes('mlb')) return 'mlb';
+      if (lowerKey.includes('nhl')) return 'nhl';
+      if (lowerKey.includes('ncaaf')) return 'ncaaf';
+      if (lowerKey.includes('ncaab')) return 'ncaab';
+      
+      return 'nfl'; // Default fallback
+    }
+
+    // Use sportKey if available, otherwise use sport parameter
+    const sportPath = sportKey 
+      ? mapSportKeyToPath(sportKey)
+      : (sport.toLowerCase() || 'nfl');
     let players: Player[] = [];
 
     try {
