@@ -1,115 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import connectDB from '@/lib/db';
-import { verifyWhopUser, getWhopProducts } from '@/lib/whop';
-import { User, IUser, MembershipPlan } from '@/models/User';
+import { verifyWhopUser } from '@/lib/whop';
+import { User, IUser } from '@/models/User';
 import { Bet, IBet } from '@/models/Bet';
 import { filterBetsByDateRange } from '@/lib/stats';
 
 export const runtime = 'nodejs';
 
-const AFFILIATE_CODE_DEFAULT = process.env.AFFILIATE_CODE || '?ref=YOUR_AFFILIATE';
-
-interface PlanWithProduct extends MembershipPlan {
-  productId?: string;
-  productRoute?: string;
-}
-
-async function getAffiliateCodeForProduct(productId: string, productRoute: string, companyId?: string): Promise<string> {
-  if (!productRoute) {
-    return AFFILIATE_CODE_DEFAULT;
-  }
-
-  if (productId) {
-    const envKey = `AFFILIATE_CODE_PRODUCT_${productId}`;
-    const envValue = process.env[envKey];
-    if (envValue) return envValue;
-  }
-
-  const routeKey = productRoute.replace(/[^a-zA-Z0-9]/g, '_').toUpperCase();
-  const routeEnvKey = `AFFILIATE_CODE_${routeKey}`;
-  const routeEnvValue = process.env[routeEnvKey];
-  if (routeEnvValue) return routeEnvValue;
-
-  if (companyId) {
-    try {
-      const products = await getWhopProducts(companyId);
-      const product = products.find(p => p.id === productId || p.route === productRoute);
-      
-      if (product && product.route) {
-        return `https://whop.com/${product.route}`;
-      }
-    } catch (error) {
-      console.error('Error fetching products for affiliate code:', error);
-    }
-  }
-
-  if (productRoute) {
-    return `https://whop.com/${productRoute}`;
-  }
-
-  const productNameLower = productRoute.toLowerCase();
-  if (productNameLower.includes('free') || productNameLower.includes('trial')) {
-    return process.env.AFFILIATE_CODE_FREE_TRIAL || AFFILIATE_CODE_DEFAULT;
-  }
-  if (productNameLower.includes('premium') || productNameLower.includes('pro')) {
-    return process.env.AFFILIATE_CODE_PREMIUM || AFFILIATE_CODE_DEFAULT;
-  }
-
-  return AFFILIATE_CODE_DEFAULT;
-}
-
-async function getAffiliateCodeForPlan(plan: PlanWithProduct, companyId?: string): Promise<string> {
-  if (plan.productRoute) {
-    return await getAffiliateCodeForProduct(plan.productId || '', plan.productRoute, companyId);
-  }
-
-  if (plan.productId && companyId) {
-    try {
-      const products = await getWhopProducts(companyId);
-      const product = products.find(p => p.id === plan.productId);
-      if (product && product.route) {
-        return `https://whop.com/${product.route}`;
-      }
-    } catch (error) {
-      console.error('Error fetching product for plan:', error);
-    }
-  }
-
-  const planName = (plan.name || '').toLowerCase();
-  const isFreeTrial = planName.includes('free') || planName.includes('trial') || (!plan.isPremium && plan.price?.toLowerCase().includes('free'));
-  
-  if (isFreeTrial) {
-    return process.env.AFFILIATE_CODE_FREE_TRIAL || AFFILIATE_CODE_DEFAULT;
-  }
-  if (plan.isPremium) {
-    return process.env.AFFILIATE_CODE_PREMIUM || AFFILIATE_CODE_DEFAULT;
-  }
-  return AFFILIATE_CODE_DEFAULT;
-}
-
-function applyAffiliateCode(url: string, affiliateCode: string): string {
-  if (affiliateCode.startsWith('http://') || affiliateCode.startsWith('https://')) {
-    return affiliateCode;
-  }
-  if (affiliateCode.startsWith('/')) {
-    return `https://whop.com${affiliateCode}`;
-  }
-  const separator = url.includes('?') ? '&' : '?';
-  return `${url}${separator}${affiliateCode.replace(/^[?&]/, '')}`;
-}
-
-async function getMembershipUrl(user: IUser, companyId?: string): Promise<string | null> {
-  if (user.membershipPlans && user.membershipPlans.length > 0) {
-    const premiumPlan = user.membershipPlans.find((p) => p.isPremium);
-    const plan = premiumPlan || user.membershipPlans[0];
-    const affiliateCode = await getAffiliateCodeForPlan(plan as PlanWithProduct, companyId);
-    return applyAffiliateCode(plan.url, affiliateCode);
-  }
-  if (user.membershipUrl) {
-    return applyAffiliateCode(user.membershipUrl, AFFILIATE_CODE_DEFAULT);
-  }
-  return null;
-}
 export async function GET(request: NextRequest) {
   try {
     await connectDB();
@@ -175,17 +72,6 @@ export async function GET(request: NextRequest) {
           }
         }
 
-        const membershipUrl = await getMembershipUrl(user, companyIdFromAuth || companyFilter || undefined);
-        const membershipPlansWithAffiliate = await Promise.all(
-          (user.membershipPlans || []).map(async (plan) => {
-            const affiliateCode = await getAffiliateCodeForPlan(plan as PlanWithProduct, companyIdFromAuth || companyFilter || undefined);
-            return {
-              ...plan,
-              url: applyAffiliateCode(plan.url, affiliateCode),
-            };
-          })
-        );
-
         return {
           userId: String(user._id),
           alias: user.alias || user.whopDisplayName || user.whopUsername || `User ${user.whopUserId.slice(0, 8)}`,
@@ -199,8 +85,6 @@ export async function GET(request: NextRequest) {
           plays: settledBets.length,
           currentStreak,
           longestStreak,
-          membershipUrl,
-          membershipPlans: membershipPlansWithAffiliate,
         };
       })
     );

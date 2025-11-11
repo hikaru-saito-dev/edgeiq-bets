@@ -33,7 +33,7 @@ interface LeaderboardEntry {
   plays: number;
   currentStreak: number;
   longestStreak: number;
-  membershipUrl: string;
+  // membershipUrl removed for now
 }
 
 export default function LeaderboardTable() {
@@ -162,13 +162,12 @@ export default function LeaderboardTable() {
                 <TableCell align="right"><strong>Plays</strong></TableCell>
                 <TableCell align="right"><strong>Current Streak</strong></TableCell>
                 <TableCell align="right"><strong>Longest Streak</strong></TableCell>
-                <TableCell align="center"><strong>Action</strong></TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
               {leaderboard.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={8} align="center">
+                  <TableCell colSpan={7} align="center">
                     No entries found
                   </TableCell>
                 </TableRow>
@@ -176,31 +175,22 @@ export default function LeaderboardTable() {
                 leaderboard.map((entry) => (
                   <TableRow key={entry.rank} hover>
                     <TableCell>
-                      <Chip
-                        label={entry.rank}
-                        color={entry.rank === 1 ? 'primary' : 'default'}
+                      <Chip 
+                        label={`#${entry.rank}`}
+                        color="primary"
                         size="small"
                       />
                     </TableCell>
                     <TableCell>
-                      <Box display="flex" alignItems="center" gap={1.5}>
-                        <Avatar
-                          src={entry.whopAvatarUrl}
-                          alt={entry.alias}
-                          sx={{
-                            width: 32,
-                            height: 32,
-                            border: '2px solid rgba(99, 102, 241, 0.3)',
-                            background: 'linear-gradient(135deg, #6366f1, #ec4899)',
-                          }}
-                        >
-                          {entry.alias.charAt(0).toUpperCase()}
+                      <Box display="flex" alignItems="center" gap={1}>
+                        <Avatar src={entry.whopAvatarUrl} sx={{ width: 28, height: 28 }}>
+                          {(entry.whopDisplayName || entry.alias || '?').charAt(0)}
                         </Avatar>
                         <Box>
-                          <Typography variant="body2" sx={{ fontWeight: 600, color: '#ffffff' }}>
+                          <Typography variant="body2" sx={{ color: '#fff' }}>
                             {entry.whopDisplayName || entry.alias}
                           </Typography>
-                          {entry.whopUsername && entry.whopUsername !== entry.whopDisplayName && (
+                          {entry.whopUsername && (
                             <Typography variant="caption" sx={{ color: '#a1a1aa' }}>
                               @{entry.whopUsername}
                             </Typography>
@@ -209,14 +199,14 @@ export default function LeaderboardTable() {
                       </Box>
                     </TableCell>
                     <TableCell align="right">
-                      <Chip
-                        label={`${entry.winRate.toFixed(2)}%`}
-                        color={getWinRateColor(entry.winRate)}
+                      <Chip 
+                        label={`${entry.winRate.toFixed(1)}%`}
+                        color={entry.winRate >= 50 ? 'success' : 'default'}
                         size="small"
                       />
                     </TableCell>
                     <TableCell align="right">
-                      <Chip
+                      <Chip 
                         label={`${entry.roi >= 0 ? '+' : ''}${entry.roi.toFixed(2)}%`}
                         color={getRoiColor(entry.roi)}
                         size="small"
@@ -235,17 +225,6 @@ export default function LeaderboardTable() {
                       {entry.currentStreak === 0 && '-'}
                     </TableCell>
                     <TableCell align="right">{entry.longestStreak}</TableCell>
-                    <TableCell align="center">
-                      <Button
-                        variant="contained"
-                        size="small"
-                        href={entry.membershipUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                      >
-                        View Membership
-                      </Button>
-                    </TableCell>
                   </TableRow>
                 ))
               )}
