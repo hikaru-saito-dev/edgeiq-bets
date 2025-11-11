@@ -18,7 +18,23 @@ import {
 import LocalFireDepartmentIcon from '@mui/icons-material/LocalFireDepartment';
 import { useToast } from './ToastProvider';
 import { motion } from 'framer-motion';
-import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip, BarChart, Bar, XAxis, YAxis, CartesianGrid } from 'recharts';
+import { 
+  PieChart, 
+  Pie, 
+  Cell, 
+  ResponsiveContainer, 
+  Legend, 
+  Tooltip, 
+  BarChart, 
+  Bar, 
+  XAxis, 
+  YAxis, 
+  CartesianGrid,
+  LineChart,
+  Line,
+  AreaChart,
+  Area
+} from 'recharts';
 
 interface UserStats {
   totalBets: number;
@@ -31,6 +47,17 @@ interface UserStats {
   unitsPL: number;
   currentStreak: number;
   longestStreak: number;
+}
+
+interface Bet {
+  _id: string;
+  eventName: string;
+  startTime: string;
+  odds: number;
+  units: number;
+  result: 'pending' | 'win' | 'loss' | 'push' | 'void';
+  createdAt: string;
+  updatedAt: string;
 }
 
 interface UserData {
@@ -57,6 +84,7 @@ export default function ProfileForm() {
   const [optIn, setOptIn] = useState(true);
   const [userData, setUserData] = useState<UserData | null>(null);
   const [stats, setStats] = useState<UserStats | null>(null);
+  const [bets, setBets] = useState<Bet[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
@@ -66,13 +94,22 @@ export default function ProfileForm() {
 
   const fetchProfile = async () => {
     try {
-      const response = await fetch('/api/user');
-      if (!response.ok) throw new Error('Failed to fetch profile');
-      const data = await response.json();
-      setUserData(data.user);
-      setAlias(data.user.alias || data.user.whopDisplayName || data.user.whopUsername || '');
-      setOptIn(data.user.optIn);
-      setStats(data.stats);
+      const [profileResponse, betsResponse] = await Promise.all([
+        fetch('/api/user'),
+        fetch('/api/bets')
+      ]);
+      
+      if (!profileResponse.ok) throw new Error('Failed to fetch profile');
+      if (!betsResponse.ok) throw new Error('Failed to fetch bets');
+      
+      const profileData = await profileResponse.json();
+      const betsData = await betsResponse.json();
+      
+      setUserData(profileData.user);
+      setAlias(profileData.user.alias || profileData.user.whopDisplayName || profileData.user.whopUsername || '');
+      setOptIn(profileData.user.optIn);
+      setStats(profileData.stats);
+      setBets(betsData.bets || []);
     } catch (error) {
       console.error('Error fetching profile:', error);
     } finally {
@@ -177,6 +214,97 @@ export default function ProfileForm() {
     { name: 'Voids', value: stats.voids, color: '#6b7280' },
   ] : [];
 
+  // Prepare time series data for line charts
+  const prepareTimeSeriesData = () => {
+    if (!bets || bets.length === 0) return [];
+    
+    const settledBets = bets.filter(bet => bet.result !== 'pending');
+    if (settledBets.length === 0) return [];
+
+    // Group by date and calculate cumulative stats
+    const dateMap = new Map<string, { date: string; wins: number; losses: number; unitsPL: number; roi: number; total: number }>();
+    
+    settledBets
+      .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
+      .forEach((bet) => {
+        const date = new Date(bet.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+        const existing = dateMap.get(date) || { date, wins: 0, losses: 0, unitsPL: 0, roi: 0, total: 0 };
+        
+        if (bet.result === 'win') {
+          existing.wins += 1;
+          existing.unitsPL += (bet.odds - 1) * bet.units;
+        } else if (bet.result === 'loss') {
+          existing.losses += 1;
+          existing.unitsPL -= bet.units;
+        }
+        existing.total += 1;
+        
+        const winRate = existing.total > 0 ? (existing.wins / existing.total) * 100 : 0;
+        existing.roi = existing.total > 0 ? (existing.unitsPL / (existing.total * bet.units)) * 100 : 0;
+        
+        dateMap.set(date, existing);
+      });
+
+    // Convert to cumulative data
+    let cumulativeWins = 0;
+    let cumulativeLosses = 0;
+    let cumulativeUnitsPL = 0;
+    let cumulativeTotal = 0;
+
+    return Array.from(dateMap.values()).map((day) => {
+      cumulativeWins += day.wins;
+      cumulativeLosses += day.losses;
+      cumulativeUnitsPL += day.unitsPL;
+      cumulativeTotal += day.total;
+      
+      const winRate = cumulativeTotal > 0 ? (cumulativeWins / cumulativeTotal) * 100 : 0;
+      const roi = cumulativeTotal > 0 ? (cumulativeUnitsPL / (cumulativeTotal * (bets[0]?.units || 1))) * 100 : 0;
+      
+      return {
+        date: day.date,
+        winRate: parseFloat(winRate.toFixed(2)),
+        roi: parseFloat(roi.toFixed(2)),
+        unitsPL: parseFloat(cumulativeUnitsPL.toFixed(2)),
+        totalBets: cumulativeTotal,
+      };
+    });
+  };
+
+  // Prepare monthly performance data
+  const prepareMonthlyData = () => {
+    if (!bets || bets.length === 0) return [];
+    
+    const settledBets = bets.filter(bet => bet.result !== 'pending');
+    if (settledBets.length === 0) return [];
+
+    const monthMap = new Map<string, { month: string; wins: number; losses: number; unitsPL: number }>();
+    
+    settledBets.forEach((bet) => {
+      const month = new Date(bet.createdAt).toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+      const existing = monthMap.get(month) || { month, wins: 0, losses: 0, unitsPL: 0 };
+      
+      if (bet.result === 'win') {
+        existing.wins += 1;
+        existing.unitsPL += (bet.odds - 1) * bet.units;
+      } else if (bet.result === 'loss') {
+        existing.losses += 1;
+        existing.unitsPL -= bet.units;
+      }
+      
+      monthMap.set(month, existing);
+    });
+
+    return Array.from(monthMap.values()).map((month) => ({
+      month: month.month,
+      wins: month.wins,
+      losses: month.losses,
+      unitsPL: parseFloat(month.unitsPL.toFixed(2)),
+    }));
+  };
+
+  const timeSeriesData = prepareTimeSeriesData();
+  const monthlyData = prepareMonthlyData();
+
   return (
     <Box>
       <Box display="flex" alignItems="center" gap={2} mb={3}>
@@ -276,90 +404,293 @@ export default function ProfileForm() {
 
           {/* Charts Section */}
           {stats.totalBets > 0 && (
-            <Box sx={{ display: 'flex', flexDirection: { xs: 'column', lg: 'row' }, gap: 3, mb: 4 }}>
-              {/* Pie Chart */}
-              <Paper sx={{ 
-                p: 3, 
-                flex: 1,
-                background: 'linear-gradient(135deg, rgba(15, 15, 35, 0.9), rgba(30, 30, 60, 0.8))', 
-                backdropFilter: 'blur(20px)', 
-                border: '1px solid rgba(99, 102, 241, 0.3)', 
-                borderRadius: 2 
-              }}>
-                <Typography variant="h6" mb={2} sx={{ color: '#ffffff', fontWeight: 600 }}>
-                  Bet Results Breakdown
-                </Typography>
-                <ResponsiveContainer width="100%" height={300}>
-                  <PieChart>
-                    <Pie
-                      data={pieData}
-                      cx="50%"
-                      cy="50%"
-                      labelLine={false}
-                      label={({ name, percent }) => `${name}: ${(percent || 0 * 100).toFixed(0)}%`}
-                      outerRadius={100}
-                      fill="#8884d8"
-                      dataKey="value"
-                    >
-                      {pieData.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={entry.color} />
-                      ))}
-                    </Pie>
-                    <Tooltip 
-                      contentStyle={{ 
-                        backgroundColor: 'rgba(15, 15, 35, 0.95)', 
-                        border: '1px solid rgba(99, 102, 241, 0.3)',
-                        borderRadius: '8px',
-                        color: '#ffffff'
-                      }}
-                    />
-                    <Legend 
-                      wrapperStyle={{ color: '#ffffff' }}
-                    />
-                  </PieChart>
-                </ResponsiveContainer>
-              </Paper>
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3, mb: 4 }}>
+              {/* First Row: Pie Chart and Bar Chart */}
+              <Box sx={{ display: 'flex', flexDirection: { xs: 'column', lg: 'row' }, gap: 3 }}>
+                {/* Pie Chart */}
+                <Paper sx={{ 
+                  p: 3, 
+                  flex: 1,
+                  background: 'linear-gradient(135deg, rgba(15, 15, 35, 0.9), rgba(30, 30, 60, 0.8))', 
+                  backdropFilter: 'blur(20px)', 
+                  border: '1px solid rgba(99, 102, 241, 0.3)', 
+                  borderRadius: 2 
+                }}>
+                  <Typography variant="h6" mb={2} sx={{ color: '#ffffff', fontWeight: 600 }}>
+                    Bet Results Breakdown
+                  </Typography>
+                  <ResponsiveContainer width="100%" height={300}>
+                    <PieChart>
+                      <Pie
+                        data={pieData}
+                        cx="50%"
+                        cy="50%"
+                        labelLine={false}
+                        label={({ name, percent }) => `${name}: ${((percent || 0) * 100).toFixed(0)}%`}
+                        outerRadius={100}
+                        fill="#8884d8"
+                        dataKey="value"
+                      >
+                        {pieData.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={entry.color} />
+                        ))}
+                      </Pie>
+                      <Tooltip 
+                        contentStyle={{ 
+                          backgroundColor: 'rgba(15, 15, 35, 0.95)', 
+                          border: '1px solid rgba(99, 102, 241, 0.3)',
+                          borderRadius: '8px',
+                          color: '#ffffff'
+                        }}
+                      />
+                      <Legend 
+                        wrapperStyle={{ color: '#ffffff' }}
+                      />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </Paper>
 
-              {/* Bar Chart */}
-              <Paper sx={{ 
-                p: 3, 
-                flex: 1,
-                background: 'linear-gradient(135deg, rgba(15, 15, 35, 0.9), rgba(30, 30, 60, 0.8))', 
-                backdropFilter: 'blur(20px)', 
-                border: '1px solid rgba(99, 102, 241, 0.3)', 
-                borderRadius: 2 
-              }}>
-                <Typography variant="h6" mb={2} sx={{ color: '#ffffff', fontWeight: 600 }}>
-                  Bet Results Comparison
-                </Typography>
-                <ResponsiveContainer width="100%" height={300}>
-                  <BarChart data={barData}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(99, 102, 241, 0.2)" />
-                    <XAxis 
-                      dataKey="name" 
-                      stroke="#a1a1aa"
-                      tick={{ fill: '#a1a1aa' }}
-                    />
-                    <YAxis 
-                      stroke="#a1a1aa"
-                      tick={{ fill: '#a1a1aa' }}
-                    />
-                    <Tooltip 
-                      contentStyle={{ 
-                        backgroundColor: 'rgba(15, 15, 35, 0.95)', 
-                        border: '1px solid rgba(99, 102, 241, 0.3)',
-                        borderRadius: '8px',
-                        color: '#ffffff'
-                      }}
-                    />
-                    <Bar dataKey="value" radius={[8, 8, 0, 0]} fill="#6366f1">
-                      {barData.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={entry.color} />
-                      ))}
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
-              </Paper>
+                {/* Bar Chart */}
+                <Paper sx={{ 
+                  p: 3, 
+                  flex: 1,
+                  background: 'linear-gradient(135deg, rgba(15, 15, 35, 0.9), rgba(30, 30, 60, 0.8))', 
+                  backdropFilter: 'blur(20px)', 
+                  border: '1px solid rgba(99, 102, 241, 0.3)', 
+                  borderRadius: 2 
+                }}>
+                  <Typography variant="h6" mb={2} sx={{ color: '#ffffff', fontWeight: 600 }}>
+                    Bet Results Comparison
+                  </Typography>
+                  <ResponsiveContainer width="100%" height={300}>
+                    <BarChart data={barData}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(99, 102, 241, 0.2)" />
+                      <XAxis 
+                        dataKey="name" 
+                        stroke="#a1a1aa"
+                        tick={{ fill: '#a1a1aa' }}
+                      />
+                      <YAxis 
+                        stroke="#a1a1aa"
+                        tick={{ fill: '#a1a1aa' }}
+                      />
+                      <Tooltip 
+                        contentStyle={{ 
+                          backgroundColor: 'rgba(15, 15, 35, 0.95)', 
+                          border: '1px solid rgba(99, 102, 241, 0.3)',
+                          borderRadius: '8px',
+                          color: '#ffffff'
+                        }}
+                      />
+                      <Bar dataKey="value" radius={[8, 8, 0, 0]} fill="#6366f1">
+                        {barData.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={entry.color} />
+                        ))}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                </Paper>
+              </Box>
+
+              {/* Second Row: Line Charts for Performance Trends */}
+              {timeSeriesData.length > 0 && (
+                <Box sx={{ display: 'flex', flexDirection: { xs: 'column', lg: 'row' }, gap: 3 }}>
+                  {/* Win Rate Trend Line Chart */}
+                  <Paper sx={{ 
+                    p: 3, 
+                    flex: 1,
+                    background: 'linear-gradient(135deg, rgba(15, 15, 35, 0.9), rgba(30, 30, 60, 0.8))', 
+                    backdropFilter: 'blur(20px)', 
+                    border: '1px solid rgba(99, 102, 241, 0.3)', 
+                    borderRadius: 2 
+                  }}>
+                    <Typography variant="h6" mb={2} sx={{ color: '#ffffff', fontWeight: 600 }}>
+                      Win Rate Trend
+                    </Typography>
+                    <ResponsiveContainer width="100%" height={300}>
+                      <LineChart data={timeSeriesData}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="rgba(99, 102, 241, 0.2)" />
+                        <XAxis 
+                          dataKey="date" 
+                          stroke="#a1a1aa"
+                          tick={{ fill: '#a1a1aa', fontSize: 12 }}
+                        />
+                        <YAxis 
+                          stroke="#a1a1aa"
+                          tick={{ fill: '#a1a1aa' }}
+                          label={{ value: 'Win Rate %', angle: -90, position: 'insideLeft', fill: '#a1a1aa' }}
+                        />
+                        <Tooltip 
+                          contentStyle={{ 
+                            backgroundColor: 'rgba(15, 15, 35, 0.95)', 
+                            border: '1px solid rgba(99, 102, 241, 0.3)',
+                            borderRadius: '8px',
+                            color: '#ffffff'
+                          }}
+                        />
+                        <Line 
+                          type="monotone" 
+                          dataKey="winRate" 
+                          stroke="#10b981" 
+                          strokeWidth={3}
+                          dot={{ fill: '#10b981', r: 4 }}
+                          activeDot={{ r: 6 }}
+                        />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </Paper>
+
+                  {/* ROI Trend Line Chart */}
+                  <Paper sx={{ 
+                    p: 3, 
+                    flex: 1,
+                    background: 'linear-gradient(135deg, rgba(15, 15, 35, 0.9), rgba(30, 30, 60, 0.8))', 
+                    backdropFilter: 'blur(20px)', 
+                    border: '1px solid rgba(99, 102, 241, 0.3)', 
+                    borderRadius: 2 
+                  }}>
+                    <Typography variant="h6" mb={2} sx={{ color: '#ffffff', fontWeight: 600 }}>
+                      ROI Trend
+                    </Typography>
+                    <ResponsiveContainer width="100%" height={300}>
+                      <AreaChart data={timeSeriesData}>
+                        <defs>
+                          <linearGradient id="roiGradient" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="5%" stopColor="#6366f1" stopOpacity={0.3}/>
+                            <stop offset="95%" stopColor="#6366f1" stopOpacity={0}/>
+                          </linearGradient>
+                        </defs>
+                        <CartesianGrid strokeDasharray="3 3" stroke="rgba(99, 102, 241, 0.2)" />
+                        <XAxis 
+                          dataKey="date" 
+                          stroke="#a1a1aa"
+                          tick={{ fill: '#a1a1aa', fontSize: 12 }}
+                        />
+                        <YAxis 
+                          stroke="#a1a1aa"
+                          tick={{ fill: '#a1a1aa' }}
+                          label={{ value: 'ROI %', angle: -90, position: 'insideLeft', fill: '#a1a1aa' }}
+                        />
+                        <Tooltip 
+                          contentStyle={{ 
+                            backgroundColor: 'rgba(15, 15, 35, 0.95)', 
+                            border: '1px solid rgba(99, 102, 241, 0.3)',
+                            borderRadius: '8px',
+                            color: '#ffffff'
+                          }}
+                        />
+                        <Area 
+                          type="monotone" 
+                          dataKey="roi" 
+                          stroke="#6366f1" 
+                          strokeWidth={3}
+                          fillOpacity={1}
+                          fill="url(#roiGradient)"
+                        />
+                      </AreaChart>
+                    </ResponsiveContainer>
+                  </Paper>
+                </Box>
+              )}
+
+              {/* Third Row: Units P/L Trend and Monthly Performance */}
+              {timeSeriesData.length > 0 && (
+                <Box sx={{ display: 'flex', flexDirection: { xs: 'column', lg: 'row' }, gap: 3 }}>
+                  {/* Units P/L Trend */}
+                  <Paper sx={{ 
+                    p: 3, 
+                    flex: 1,
+                    background: 'linear-gradient(135deg, rgba(15, 15, 35, 0.9), rgba(30, 30, 60, 0.8))', 
+                    backdropFilter: 'blur(20px)', 
+                    border: '1px solid rgba(99, 102, 241, 0.3)', 
+                    borderRadius: 2 
+                  }}>
+                    <Typography variant="h6" mb={2} sx={{ color: '#ffffff', fontWeight: 600 }}>
+                      Units Profit/Loss Trend
+                    </Typography>
+                    <ResponsiveContainer width="100%" height={300}>
+                      <AreaChart data={timeSeriesData}>
+                        <defs>
+                          <linearGradient id="unitsGradient" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="5%" stopColor="#10b981" stopOpacity={0.3}/>
+                            <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
+                          </linearGradient>
+                        </defs>
+                        <CartesianGrid strokeDasharray="3 3" stroke="rgba(99, 102, 241, 0.2)" />
+                        <XAxis 
+                          dataKey="date" 
+                          stroke="#a1a1aa"
+                          tick={{ fill: '#a1a1aa', fontSize: 12 }}
+                        />
+                        <YAxis 
+                          stroke="#a1a1aa"
+                          tick={{ fill: '#a1a1aa' }}
+                          label={{ value: 'Units', angle: -90, position: 'insideLeft', fill: '#a1a1aa' }}
+                        />
+                        <Tooltip 
+                          contentStyle={{ 
+                            backgroundColor: 'rgba(15, 15, 35, 0.95)', 
+                            border: '1px solid rgba(99, 102, 241, 0.3)',
+                            borderRadius: '8px',
+                            color: '#ffffff'
+                          }}
+                        />
+                        <Area 
+                          type="monotone" 
+                          dataKey="unitsPL" 
+                          stroke="#10b981" 
+                          strokeWidth={3}
+                          fillOpacity={1}
+                          fill="url(#unitsGradient)"
+                        />
+                      </AreaChart>
+                    </ResponsiveContainer>
+                  </Paper>
+
+                  {/* Monthly Performance Bar Chart */}
+                  {monthlyData.length > 0 && (
+                    <Paper sx={{ 
+                      p: 3, 
+                      flex: 1,
+                      background: 'linear-gradient(135deg, rgba(15, 15, 35, 0.9), rgba(30, 30, 60, 0.8))', 
+                      backdropFilter: 'blur(20px)', 
+                      border: '1px solid rgba(99, 102, 241, 0.3)', 
+                      borderRadius: 2 
+                    }}>
+                      <Typography variant="h6" mb={2} sx={{ color: '#ffffff', fontWeight: 600 }}>
+                        Monthly Performance
+                      </Typography>
+                      <ResponsiveContainer width="100%" height={300}>
+                        <BarChart data={monthlyData}>
+                          <CartesianGrid strokeDasharray="3 3" stroke="rgba(99, 102, 241, 0.2)" />
+                          <XAxis 
+                            dataKey="month" 
+                            stroke="#a1a1aa"
+                            tick={{ fill: '#a1a1aa', fontSize: 12 }}
+                          />
+                          <YAxis 
+                            stroke="#a1a1aa"
+                            tick={{ fill: '#a1a1aa' }}
+                          />
+                          <Tooltip 
+                            contentStyle={{ 
+                              backgroundColor: 'rgba(15, 15, 35, 0.95)', 
+                              border: '1px solid rgba(99, 102, 241, 0.3)',
+                              borderRadius: '8px',
+                              color: '#ffffff'
+                            }}
+                          />
+                          <Legend 
+                            wrapperStyle={{ color: '#ffffff' }}
+                          />
+                          <Bar dataKey="wins" stackId="a" fill="#10b981" radius={[0, 0, 0, 0]} />
+                          <Bar dataKey="losses" stackId="a" fill="#ef4444" radius={[8, 8, 0, 0]} />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </Paper>
+                  )}
+                </Box>
+              )}
             </Box>
           )}
 
