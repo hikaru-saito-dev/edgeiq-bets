@@ -30,8 +30,6 @@ import {
   XAxis, 
   YAxis, 
   CartesianGrid,
-  LineChart,
-  Line,
   AreaChart,
   Area
 } from 'recharts';
@@ -270,40 +268,7 @@ export default function ProfileForm() {
     });
   };
 
-  // Prepare monthly performance data
-  const prepareMonthlyData = () => {
-    if (!bets || bets.length === 0) return [];
-    
-    const settledBets = bets.filter(bet => bet.result !== 'pending');
-    if (settledBets.length === 0) return [];
-
-    const monthMap = new Map<string, { month: string; wins: number; losses: number; unitsPL: number }>();
-    
-    settledBets.forEach((bet) => {
-      const month = new Date(bet.createdAt).toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
-      const existing = monthMap.get(month) || { month, wins: 0, losses: 0, unitsPL: 0 };
-      
-      if (bet.result === 'win') {
-        existing.wins += 1;
-        existing.unitsPL += (bet.odds - 1) * bet.units;
-      } else if (bet.result === 'loss') {
-        existing.losses += 1;
-        existing.unitsPL -= bet.units;
-      }
-      
-      monthMap.set(month, existing);
-    });
-
-    return Array.from(monthMap.values()).map((month) => ({
-      month: month.month,
-      wins: month.wins,
-      losses: month.losses,
-      unitsPL: parseFloat(month.unitsPL.toFixed(2)),
-    }));
-  };
-
   const timeSeriesData = prepareTimeSeriesData();
-  const monthlyData = prepareMonthlyData();
 
   return (
     <Box>
@@ -404,7 +369,7 @@ export default function ProfileForm() {
 
           {/* Charts Section */}
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3, mb: 4 }}>
-            {/* First Row: Pie Chart */}
+            {/* First Row: Pie Chart and Bar Chart */}
             <Box sx={{ display: 'flex', flexDirection: { xs: 'column', lg: 'row' }, gap: 3 }}>
               {/* Pie Chart */}
               <Paper sx={{ 
@@ -457,64 +422,61 @@ export default function ProfileForm() {
                   </Box>
                 )}
               </Paper>
-            </Box>
 
-              {/* Second Row: Line Charts for Performance Trends */}
-              <Box sx={{ display: 'flex', flexDirection: { xs: 'column', lg: 'row' }, gap: 3 }}>
-                  {/* Win Rate Trend Line Chart */}
-                  <Paper sx={{ 
-                    p: 3, 
-                    flex: 1,
-                    background: 'linear-gradient(135deg, rgba(15, 15, 35, 0.9), rgba(30, 30, 60, 0.8))', 
-                    backdropFilter: 'blur(20px)', 
-                    border: '1px solid rgba(99, 102, 241, 0.3)', 
-                    borderRadius: 2 
-                  }}>
-                    <Typography variant="h6" mb={2} sx={{ color: '#ffffff', fontWeight: 600 }}>
-                      Win Rate Trend
-                    </Typography>
-                    {timeSeriesData.length > 0 ? (
-                      <ResponsiveContainer width="100%" height={300}>
-                        <LineChart data={timeSeriesData}>
-                          <CartesianGrid strokeDasharray="3 3" stroke="rgba(99, 102, 241, 0.2)" />
-                          <XAxis 
-                            dataKey="date" 
-                            stroke="#a1a1aa"
-                            tick={{ fill: '#a1a1aa', fontSize: 12 }}
-                          />
-                          <YAxis 
-                            stroke="#a1a1aa"
-                            tick={{ fill: '#a1a1aa' }}
-                            label={{ value: 'Win Rate %', angle: -90, position: 'insideLeft', fill: '#a1a1aa' }}
-                          />
-                          <Tooltip 
-                            contentStyle={{ 
-                              backgroundColor: 'rgba(15, 15, 35, 0.95)', 
-                              border: '1px solid rgba(99, 102, 241, 0.3)',
-                              borderRadius: '8px',
-                              color: '#ffffff'
-                            }}
-                          />
-                          <Line 
-                            type="monotone" 
-                            dataKey="winRate" 
-                            stroke="#10b981" 
-                            strokeWidth={3}
-                            dot={{ fill: '#10b981', r: 4 }}
-                            activeDot={{ r: 6 }}
-                          />
-                        </LineChart>
-                      </ResponsiveContainer>
-                    ) : (
-                      <Box sx={{ height: 300, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                        <Typography sx={{ color: '#a1a1aa', textAlign: 'center' }}>
-                          No trend data available yet.<br />
-                          Settle some bets to see your win rate trend!
-                        </Typography>
-                      </Box>
-                    )}
-                  </Paper>
+                {/* Bar Chart */}
+                <Paper sx={{ 
+                  p: 3, 
+                  flex: 1,
+                  background: 'linear-gradient(135deg, rgba(15, 15, 35, 0.9), rgba(30, 30, 60, 0.8))', 
+                  backdropFilter: 'blur(20px)', 
+                  border: '1px solid rgba(99, 102, 241, 0.3)', 
+                  borderRadius: 2 
+                }}>
+                  <Typography variant="h6" mb={2} sx={{ color: '#ffffff', fontWeight: 600 }}>
+                    Bet Results Comparison
+                  </Typography>
+                  {barData.length > 0 && barData.some(d => d.value > 0) ? (
+                    <ResponsiveContainer width="100%" height={300}>
+                      <BarChart data={barData}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="rgba(99, 102, 241, 0.2)" />
+                        <XAxis 
+                          dataKey="name" 
+                          stroke="#a1a1aa"
+                          tick={{ fill: '#a1a1aa' }}
+                        />
+                        <YAxis 
+                          stroke="#a1a1aa"
+                          tick={{ fill: '#a1a1aa' }}
+                        />
+                        <Tooltip 
+                          contentStyle={{ 
+                            backgroundColor: 'rgba(15, 15, 35, 0.95)', 
+                            border: '1px solid rgba(99, 102, 241, 0.3)',
+                            borderRadius: '8px',
+                            color: '#ffffff'
+                          }}
+                        />
+                        <Bar dataKey="value" radius={[8, 8, 0, 0]} fill="#6366f1">
+                          {barData.map((entry, index) => (
+                            <Cell key={`cell-${index}`} fill={entry.color} />
+                          ))}
+                        </Bar>
+                      </BarChart>
+                    </ResponsiveContainer>
+                  ) : (
+                    <Box sx={{ height: 300, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <Typography sx={{ color: '#a1a1aa', textAlign: 'center' }}>
+                        No bet data available yet.<br />
+                        Create your first bet to see the comparison!
+                      </Typography>
+                    </Box>
+                  )}
+                </Paper>
+              </Box>
 
+              {/* Second Row: ROI Trend and Units P/L Trend */}
+              {timeSeriesData.length > 0 && (
+                <Box sx={{ display: 'flex', flexDirection: { xs: 'column', lg: 'row' }, gap: 3 }}>
                   {/* ROI Trend Line Chart */}
                   <Paper sx={{ 
                     p: 3, 
@@ -527,9 +489,8 @@ export default function ProfileForm() {
                     <Typography variant="h6" mb={2} sx={{ color: '#ffffff', fontWeight: 600 }}>
                       ROI Trend
                     </Typography>
-                    {timeSeriesData.length > 0 ? (
-                      <ResponsiveContainer width="100%" height={300}>
-                        <AreaChart data={timeSeriesData}>
+                    <ResponsiveContainer width="100%" height={300}>
+                      <AreaChart data={timeSeriesData}>
                         <defs>
                           <linearGradient id="roiGradient" x1="0" y1="0" x2="0" y2="1">
                             <stop offset="5%" stopColor="#6366f1" stopOpacity={0.3}/>
@@ -565,19 +526,8 @@ export default function ProfileForm() {
                         />
                       </AreaChart>
                     </ResponsiveContainer>
-                    ) : (
-                      <Box sx={{ height: 300, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                        <Typography sx={{ color: '#a1a1aa', textAlign: 'center' }}>
-                          No trend data available yet.<br />
-                          Settle some bets to see your ROI trend!
-                        </Typography>
-                      </Box>
-                    )}
                   </Paper>
-                </Box>
 
-              {/* Third Row: Units P/L Trend */}
-              <Box sx={{ display: 'flex', flexDirection: { xs: 'column', lg: 'row' }, gap: 3 }}>
                   {/* Units P/L Trend */}
                   <Paper sx={{ 
                     p: 3, 
@@ -590,54 +540,46 @@ export default function ProfileForm() {
                     <Typography variant="h6" mb={2} sx={{ color: '#ffffff', fontWeight: 600 }}>
                       Units Profit/Loss Trend
                     </Typography>
-                    {timeSeriesData.length > 0 ? (
-                      <ResponsiveContainer width="100%" height={300}>
-                        <AreaChart data={timeSeriesData}>
-                          <defs>
-                            <linearGradient id="unitsGradient" x1="0" y1="0" x2="0" y2="1">
-                              <stop offset="5%" stopColor="#10b981" stopOpacity={0.3}/>
-                              <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
-                            </linearGradient>
-                          </defs>
-                          <CartesianGrid strokeDasharray="3 3" stroke="rgba(99, 102, 241, 0.2)" />
-                          <XAxis 
-                            dataKey="date" 
-                            stroke="#a1a1aa"
-                            tick={{ fill: '#a1a1aa', fontSize: 12 }}
-                          />
-                          <YAxis 
-                            stroke="#a1a1aa"
-                            tick={{ fill: '#a1a1aa' }}
-                            label={{ value: 'Units', angle: -90, position: 'insideLeft', fill: '#a1a1aa' }}
-                          />
-                          <Tooltip 
-                            contentStyle={{ 
-                              backgroundColor: 'rgba(15, 15, 35, 0.95)', 
-                              border: '1px solid rgba(99, 102, 241, 0.3)',
-                              borderRadius: '8px',
-                              color: '#ffffff'
-                            }}
-                          />
-                          <Area 
-                            type="monotone" 
-                            dataKey="unitsPL" 
-                            stroke="#10b981" 
-                            strokeWidth={3}
-                            fillOpacity={1}
-                            fill="url(#unitsGradient)"
-                          />
-                        </AreaChart>
-                      </ResponsiveContainer>
-                    ) : (
-                      <Box sx={{ height: 300, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                        <Typography sx={{ color: '#a1a1aa', textAlign: 'center' }}>
-                          No trend data available yet.<br />
-                          Settle some bets to see your units P/L trend!
-                        </Typography>
-                      </Box>
-                    )}
+                    <ResponsiveContainer width="100%" height={300}>
+                      <AreaChart data={timeSeriesData}>
+                        <defs>
+                          <linearGradient id="unitsGradient" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="5%" stopColor="#10b981" stopOpacity={0.3}/>
+                            <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
+                          </linearGradient>
+                        </defs>
+                        <CartesianGrid strokeDasharray="3 3" stroke="rgba(99, 102, 241, 0.2)" />
+                        <XAxis 
+                          dataKey="date" 
+                          stroke="#a1a1aa"
+                          tick={{ fill: '#a1a1aa', fontSize: 12 }}
+                        />
+                        <YAxis 
+                          stroke="#a1a1aa"
+                          tick={{ fill: '#a1a1aa' }}
+                          label={{ value: 'Units', angle: -90, position: 'insideLeft', fill: '#a1a1aa' }}
+                        />
+                        <Tooltip 
+                          contentStyle={{ 
+                            backgroundColor: 'rgba(15, 15, 35, 0.95)', 
+                            border: '1px solid rgba(99, 102, 241, 0.3)',
+                            borderRadius: '8px',
+                            color: '#ffffff'
+                          }}
+                        />
+                        <Area 
+                          type="monotone" 
+                          dataKey="unitsPL" 
+                          stroke="#10b981" 
+                          strokeWidth={3}
+                          fillOpacity={1}
+                          fill="url(#unitsGradient)"
+                        />
+                      </AreaChart>
+                    </ResponsiveContainer>
                   </Paper>
                 </Box>
+              )}
             </Box>
 
           <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
