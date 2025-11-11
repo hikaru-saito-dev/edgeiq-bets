@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import connectDB from '@/lib/db';
-import { verifyWhopUser, getWhopCompany } from '@/lib/whop';
+import { verifyWhopUser, getWhopCompany, getWhopUser } from '@/lib/whop';
 import { Bet, IBet } from '@/models/Bet';
 import { User } from '@/models/User';
 import { Log } from '@/models/Log';
@@ -28,6 +28,9 @@ export async function GET() {
     // Find or create user
     let user = await User.findOne({ whopUserId: userId, companyId: companyId || 'default' });
     if (!user) {
+      // Fetch user data from Whop API
+      const whopUserData = await getWhopUser(userId);
+      
       // Get company info if available
       let companyInfo = null;
       if (companyId) {
@@ -38,8 +41,11 @@ export async function GET() {
       user = await User.create({
         whopUserId: userId,
         companyId: companyId || 'default',
-        alias: `User ${userId.slice(0, 8)}`,
+        alias: whopUserData?.name || whopUserData?.username || `User ${userId.slice(0, 8)}`,
         whopName: companyInfo?.name,
+        whopUsername: whopUserData?.username,
+        whopDisplayName: whopUserData?.name,
+        whopAvatarUrl: whopUserData?.profilePicture?.sourceUrl,
         optIn: true,
         membershipPlans: [],
         stats: {

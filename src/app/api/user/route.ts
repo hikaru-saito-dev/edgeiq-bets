@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import connectDB from '@/lib/db';
-import { verifyWhopUser, getWhopCompany } from '@/lib/whop';
+import { verifyWhopUser, getWhopCompany, getWhopUser } from '@/lib/whop';
 import { User, MembershipPlan } from '@/models/User';
 import { Bet, IBet } from '@/models/Bet';
 import { calculateStats } from '@/lib/stats';
@@ -40,6 +40,9 @@ export async function GET() {
     // Find or create user
     let user = await User.findOne({ whopUserId: verifiedUserId, companyId: companyId || 'default' });
     if (!user) {
+      // Fetch user data from Whop API
+      const whopUserData = await getWhopUser(verifiedUserId);
+      
       // Get company info if available
       let companyInfo = null;
       if (companyId) {
@@ -50,8 +53,11 @@ export async function GET() {
       user = await User.create({
         whopUserId: verifiedUserId,
         companyId: companyId || 'default',
-        alias: `User ${verifiedUserId.slice(0, 8)}`,
+        alias: whopUserData?.name || whopUserData?.username || `User ${verifiedUserId.slice(0, 8)}`,
         whopName: companyInfo?.name,
+        whopUsername: whopUserData?.username,
+        whopDisplayName: whopUserData?.name,
+        whopAvatarUrl: whopUserData?.profilePicture?.sourceUrl,
         optIn: true,
         membershipPlans: [],
         stats: {
@@ -62,6 +68,29 @@ export async function GET() {
           longestStreak: 0,
         },
       });
+    } else {
+      // Update user data from Whop if missing or outdated
+      if (!user.whopUsername || !user.whopDisplayName || !user.whopAvatarUrl) {
+        const whopUserData = await getWhopUser(verifiedUserId);
+        if (whopUserData) {
+          if (!user.whopUsername && whopUserData.username) {
+            user.whopUsername = whopUserData.username;
+          }
+          if (!user.whopDisplayName && whopUserData.name) {
+            user.whopDisplayName = whopUserData.name;
+          }
+          if (!user.whopAvatarUrl && whopUserData.profilePicture?.sourceUrl) {
+            user.whopAvatarUrl = whopUserData.profilePicture.sourceUrl;
+          }
+          // Update alias if it's still a placeholder - use whopDisplayName as default
+          if (user.alias.startsWith('User ') && whopUserData.name) {
+            user.alias = whopUserData.name;
+          } else if (!user.alias && whopUserData.name) {
+            user.alias = whopUserData.name;
+          }
+          await user.save();
+        }
+      }
     }
 
     // Get all bets and calculate current stats
@@ -70,11 +99,14 @@ export async function GET() {
 
     return NextResponse.json({
       user: {
-        alias: user.alias,
+        alias: user.alias || user.whopDisplayName || user.whopUsername || `User ${user.whopUserId.slice(0, 8)}`,
         optIn: user.optIn,
         whopUserId: user.whopUserId,
         companyId: user.companyId,
         whopName: user.whopName,
+        whopUsername: user.whopUsername,
+        whopDisplayName: user.whopDisplayName,
+        whopAvatarUrl: user.whopAvatarUrl,
         membershipPlans: user.membershipPlans || [],
       },
       stats,
@@ -109,10 +141,23 @@ export async function PATCH(request: NextRequest) {
     // Find or create user
     let user = await User.findOne({ whopUserId: userId, companyId: companyId || 'default' });
     if (!user) {
+      // Fetch user data from Whop API
+      const whopUserData = await getWhopUser(userId);
+      
+      // Get company info if available
+      let companyInfo = null;
+      if (companyId) {
+        companyInfo = await getWhopCompany(companyId);
+      }
+
       user = await User.create({
         whopUserId: userId,
         companyId: companyId || 'default',
-        alias: validated.alias || `User ${userId.slice(0, 8)}`,
+        alias: validated.alias || whopUserData?.name || whopUserData?.username || `User ${userId.slice(0, 8)}`,
+        whopName: companyInfo?.name,
+        whopUsername: whopUserData?.username,
+        whopDisplayName: whopUserData?.name,
+        whopAvatarUrl: whopUserData?.profilePicture?.sourceUrl,
         optIn: validated.optIn ?? true,
         membershipPlans: validated.membershipPlans || [],
         stats: {

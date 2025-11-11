@@ -13,10 +13,12 @@ import {
   CardContent,
   CircularProgress,
   Skeleton,
+  Avatar,
 } from '@mui/material';
 import LocalFireDepartmentIcon from '@mui/icons-material/LocalFireDepartment';
 import { useToast } from './ToastProvider';
 import { motion } from 'framer-motion';
+import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip, BarChart, Bar, XAxis, YAxis, CartesianGrid } from 'recharts';
 
 interface UserStats {
   totalBets: number;
@@ -31,10 +33,29 @@ interface UserStats {
   longestStreak: number;
 }
 
+interface UserData {
+  alias: string;
+  optIn: boolean;
+  whopUserId: string;
+  companyId: string;
+  whopName?: string;
+  whopUsername?: string;
+  whopDisplayName?: string;
+  whopAvatarUrl?: string;
+  membershipPlans?: Array<{
+    id: string;
+    name: string;
+    price: string;
+    url: string;
+    isPremium?: boolean;
+  }>;
+}
+
 export default function ProfileForm() {
   const toast = useToast();
   const [alias, setAlias] = useState('');
   const [optIn, setOptIn] = useState(true);
+  const [userData, setUserData] = useState<UserData | null>(null);
   const [stats, setStats] = useState<UserStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -48,7 +69,8 @@ export default function ProfileForm() {
       const response = await fetch('/api/user');
       if (!response.ok) throw new Error('Failed to fetch profile');
       const data = await response.json();
-      setAlias(data.user.alias);
+      setUserData(data.user);
+      setAlias(data.user.alias || data.user.whopDisplayName || data.user.whopUsername || '');
       setOptIn(data.user.optIn);
       setStats(data.stats);
     } catch (error) {
@@ -141,35 +163,106 @@ export default function ProfileForm() {
     );
   }
 
+  const pieData = stats ? [
+    { name: 'Wins', value: stats.wins, color: '#10b981' },
+    { name: 'Losses', value: stats.losses, color: '#ef4444' },
+    { name: 'Pushes', value: stats.pushes, color: '#f59e0b' },
+    { name: 'Voids', value: stats.voids, color: '#6b7280' },
+  ].filter(item => item.value > 0) : [];
+
+  const barData = stats ? [
+    { name: 'Wins', value: stats.wins, color: '#10b981' },
+    { name: 'Losses', value: stats.losses, color: '#ef4444' },
+    { name: 'Pushes', value: stats.pushes, color: '#f59e0b' },
+    { name: 'Voids', value: stats.voids, color: '#6b7280' },
+  ] : [];
+
   return (
     <Box>
-      <Typography variant="h4" component="h1" mb={3}>
-        Profile
-      </Typography>
+      <Box display="flex" alignItems="center" gap={2} mb={3}>
+        <Avatar
+          src={userData?.whopAvatarUrl}
+          alt={userData?.whopDisplayName || userData?.alias || 'User'}
+          sx={{
+            width: 64,
+            height: 64,
+            border: '3px solid rgba(99, 102, 241, 0.5)',
+            background: 'linear-gradient(135deg, #6366f1, #ec4899)',
+            boxShadow: '0 4px 20px rgba(99, 102, 241, 0.3)',
+          }}
+        >
+          {(userData?.whopDisplayName || userData?.alias || 'U').charAt(0).toUpperCase()}
+        </Avatar>
+        <Box>
+          <Typography variant="h4" component="h1" sx={{ color: '#ffffff', fontWeight: 700 }}>
+            {userData?.whopDisplayName || userData?.alias || 'Profile'}
+          </Typography>
+          {userData?.whopUsername && (
+            <Typography variant="body2" sx={{ color: '#a1a1aa', mt: 0.5 }}>
+              @{userData.whopUsername}
+            </Typography>
+          )}
+        </Box>
+      </Box>
 
-      <Paper sx={{ p: 3, mb: 3 }}>
+      <Paper sx={{ p: 3, mb: 3, background: 'linear-gradient(135deg, rgba(15, 15, 35, 0.9), rgba(30, 30, 60, 0.8))', backdropFilter: 'blur(20px)', border: '1px solid rgba(99, 102, 241, 0.3)', borderRadius: 2 }}>
         <TextField
           fullWidth
           label="Alias"
           value={alias}
           onChange={(e) => setAlias(e.target.value)}
           margin="normal"
+          sx={{
+            '& .MuiOutlinedInput-root': {
+              color: '#ffffff',
+              '& fieldset': {
+                borderColor: 'rgba(99, 102, 241, 0.3)',
+              },
+              '&:hover fieldset': {
+                borderColor: 'rgba(99, 102, 241, 0.5)',
+              },
+              '&.Mui-focused fieldset': {
+                borderColor: '#6366f1',
+              },
+            },
+            '& .MuiInputLabel-root': {
+              color: '#a1a1aa',
+            },
+          }}
         />
         <FormControlLabel
           control={
             <Switch
               checked={optIn}
               onChange={(e) => setOptIn(e.target.checked)}
+              sx={{
+                '& .MuiSwitch-switchBase.Mui-checked': {
+                  color: '#6366f1',
+                },
+                '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': {
+                  backgroundColor: '#6366f1',
+                },
+              }}
             />
           }
           label="Opt-in to Leaderboard"
-          sx={{ mt: 2 }}
+          sx={{ mt: 2, color: '#ffffff' }}
         />
         <Button
           variant="contained"
           onClick={handleSave}
           disabled={saving}
-          sx={{ mt: 2 }}
+          sx={{ 
+            mt: 2,
+            background: 'linear-gradient(135deg, #6366f1, #ec4899)',
+            '&:hover': {
+              background: 'linear-gradient(135deg, #4f46e5, #db2777)',
+            },
+            '&:disabled': {
+              background: 'rgba(99, 102, 241, 0.3)',
+            },
+          }}
+          startIcon={saving ? <CircularProgress size={16} sx={{ color: '#ffffff' }} /> : null}
         >
           {saving ? 'Saving...' : 'Save Profile'}
         </Button>
@@ -177,39 +270,147 @@ export default function ProfileForm() {
 
       {stats && (
         <Box>
-          <Typography variant="h5" component="h2" mb={2}>
+          <Typography variant="h5" component="h2" mb={3} sx={{ color: '#ffffff', fontWeight: 600 }}>
             Your Stats
           </Typography>
+
+          {/* Charts Section */}
+          {stats.totalBets > 0 && (
+            <Box sx={{ display: 'flex', flexDirection: { xs: 'column', lg: 'row' }, gap: 3, mb: 4 }}>
+              {/* Pie Chart */}
+              <Paper sx={{ 
+                p: 3, 
+                flex: 1,
+                background: 'linear-gradient(135deg, rgba(15, 15, 35, 0.9), rgba(30, 30, 60, 0.8))', 
+                backdropFilter: 'blur(20px)', 
+                border: '1px solid rgba(99, 102, 241, 0.3)', 
+                borderRadius: 2 
+              }}>
+                <Typography variant="h6" mb={2} sx={{ color: '#ffffff', fontWeight: 600 }}>
+                  Bet Results Breakdown
+                </Typography>
+                <ResponsiveContainer width="100%" height={300}>
+                  <PieChart>
+                    <Pie
+                      data={pieData}
+                      cx="50%"
+                      cy="50%"
+                      labelLine={false}
+                      label={({ name, percent }) => `${name}: ${(percent || 0 * 100).toFixed(0)}%`}
+                      outerRadius={100}
+                      fill="#8884d8"
+                      dataKey="value"
+                    >
+                      {pieData.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={entry.color} />
+                      ))}
+                    </Pie>
+                    <Tooltip 
+                      contentStyle={{ 
+                        backgroundColor: 'rgba(15, 15, 35, 0.95)', 
+                        border: '1px solid rgba(99, 102, 241, 0.3)',
+                        borderRadius: '8px',
+                        color: '#ffffff'
+                      }}
+                    />
+                    <Legend 
+                      wrapperStyle={{ color: '#ffffff' }}
+                    />
+                  </PieChart>
+                </ResponsiveContainer>
+              </Paper>
+
+              {/* Bar Chart */}
+              <Paper sx={{ 
+                p: 3, 
+                flex: 1,
+                background: 'linear-gradient(135deg, rgba(15, 15, 35, 0.9), rgba(30, 30, 60, 0.8))', 
+                backdropFilter: 'blur(20px)', 
+                border: '1px solid rgba(99, 102, 241, 0.3)', 
+                borderRadius: 2 
+              }}>
+                <Typography variant="h6" mb={2} sx={{ color: '#ffffff', fontWeight: 600 }}>
+                  Bet Results Comparison
+                </Typography>
+                <ResponsiveContainer width="100%" height={300}>
+                  <BarChart data={barData}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(99, 102, 241, 0.2)" />
+                    <XAxis 
+                      dataKey="name" 
+                      stroke="#a1a1aa"
+                      tick={{ fill: '#a1a1aa' }}
+                    />
+                    <YAxis 
+                      stroke="#a1a1aa"
+                      tick={{ fill: '#a1a1aa' }}
+                    />
+                    <Tooltip 
+                      contentStyle={{ 
+                        backgroundColor: 'rgba(15, 15, 35, 0.95)', 
+                        border: '1px solid rgba(99, 102, 241, 0.3)',
+                        borderRadius: '8px',
+                        color: '#ffffff'
+                      }}
+                    />
+                    <Bar dataKey="value" radius={[8, 8, 0, 0]} fill="#6366f1">
+                      {barData.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={entry.color} />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </Paper>
+            </Box>
+          )}
+
           <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
             <Box sx={{ width: { xs: '100%', sm: 'calc(50% - 8px)', md: 'calc(33.333% - 11px)' } }}>
-              <Card>
+              <Card sx={{ 
+                background: 'linear-gradient(135deg, rgba(15, 15, 35, 0.9), rgba(30, 30, 60, 0.8))', 
+                backdropFilter: 'blur(20px)', 
+                border: '1px solid rgba(99, 102, 241, 0.3)', 
+                borderRadius: 2 
+              }}>
                 <CardContent>
-                  <Typography color="text.secondary" gutterBottom>
+                  <Typography sx={{ color: '#a1a1aa', mb: 1 }} gutterBottom>
                     Total Bets
                   </Typography>
-                  <Typography variant="h4">{stats.totalBets}</Typography>
+                  <Typography variant="h4" sx={{ color: '#ffffff', fontWeight: 700 }}>{stats.totalBets}</Typography>
                 </CardContent>
               </Card>
             </Box>
             <Box sx={{ width: { xs: '100%', sm: 'calc(50% - 8px)', md: 'calc(33.333% - 11px)' } }}>
-              <Card>
+              <Card sx={{ 
+                background: 'linear-gradient(135deg, rgba(15, 15, 35, 0.9), rgba(30, 30, 60, 0.8))', 
+                backdropFilter: 'blur(20px)', 
+                border: '1px solid rgba(99, 102, 241, 0.3)', 
+                borderRadius: 2 
+              }}>
                 <CardContent>
-                  <Typography color="text.secondary" gutterBottom>
+                  <Typography sx={{ color: '#a1a1aa', mb: 1 }} gutterBottom>
                     Win Rate
                   </Typography>
-                  <Typography variant="h4">{stats.winRate.toFixed(2)}%</Typography>
+                  <Typography variant="h4" sx={{ color: '#ffffff', fontWeight: 700 }}>{stats.winRate.toFixed(2)}%</Typography>
                 </CardContent>
               </Card>
             </Box>
             <Box sx={{ width: { xs: '100%', sm: 'calc(50% - 8px)', md: 'calc(33.333% - 11px)' } }}>
-              <Card>
+              <Card sx={{ 
+                background: 'linear-gradient(135deg, rgba(15, 15, 35, 0.9), rgba(30, 30, 60, 0.8))', 
+                backdropFilter: 'blur(20px)', 
+                border: '1px solid rgba(99, 102, 241, 0.3)', 
+                borderRadius: 2 
+              }}>
                 <CardContent>
-                  <Typography color="text.secondary" gutterBottom>
+                  <Typography sx={{ color: '#a1a1aa', mb: 1 }} gutterBottom>
                     ROI
                   </Typography>
                   <Typography 
                     variant="h4"
-                    color={stats.roi >= 0 ? 'success.main' : 'error.main'}
+                    sx={{ 
+                      color: stats.roi >= 0 ? '#10b981' : '#ef4444', 
+                      fontWeight: 700 
+                    }}
                   >
                     {stats.roi >= 0 ? '+' : ''}{stats.roi.toFixed(2)}%
                   </Typography>
@@ -217,14 +418,22 @@ export default function ProfileForm() {
               </Card>
             </Box>
             <Box sx={{ width: { xs: '100%', sm: 'calc(50% - 8px)', md: 'calc(33.333% - 11px)' } }}>
-              <Card>
+              <Card sx={{ 
+                background: 'linear-gradient(135deg, rgba(15, 15, 35, 0.9), rgba(30, 30, 60, 0.8))', 
+                backdropFilter: 'blur(20px)', 
+                border: '1px solid rgba(99, 102, 241, 0.3)', 
+                borderRadius: 2 
+              }}>
                 <CardContent>
-                  <Typography color="text.secondary" gutterBottom>
+                  <Typography sx={{ color: '#a1a1aa', mb: 1 }} gutterBottom>
                     Units P/L
                   </Typography>
                   <Typography 
                     variant="h4"
-                    color={stats.unitsPL >= 0 ? 'success.main' : 'error.main'}
+                    sx={{ 
+                      color: stats.unitsPL >= 0 ? '#10b981' : '#ef4444', 
+                      fontWeight: 700 
+                    }}
                   >
                     {stats.unitsPL >= 0 ? '+' : ''}{stats.unitsPL.toFixed(2)}
                   </Typography>
@@ -232,45 +441,65 @@ export default function ProfileForm() {
               </Card>
             </Box>
             <Box sx={{ width: { xs: '100%', sm: 'calc(50% - 8px)', md: 'calc(33.333% - 11px)' } }}>
-              <Card>
+              <Card sx={{ 
+                background: 'linear-gradient(135deg, rgba(15, 15, 35, 0.9), rgba(30, 30, 60, 0.8))', 
+                backdropFilter: 'blur(20px)', 
+                border: '1px solid rgba(99, 102, 241, 0.3)', 
+                borderRadius: 2 
+              }}>
                 <CardContent>
-                  <Typography color="text.secondary" gutterBottom>
+                  <Typography sx={{ color: '#a1a1aa', mb: 1 }} gutterBottom>
                     Current Streak
                   </Typography>
-                  <Typography variant="h4" display="flex" alignItems="center" gap={1}>
-                    {stats.currentStreak > 0 && <LocalFireDepartmentIcon color="warning" />}
+                  <Typography variant="h4" display="flex" alignItems="center" gap={1} sx={{ color: '#ffffff', fontWeight: 700 }}>
+                    {stats.currentStreak > 0 && <LocalFireDepartmentIcon sx={{ color: '#f59e0b' }} />}
                     {stats.currentStreak}
                   </Typography>
                 </CardContent>
               </Card>
             </Box>
             <Box sx={{ width: { xs: '100%', sm: 'calc(50% - 8px)', md: 'calc(33.333% - 11px)' } }}>
-              <Card>
+              <Card sx={{ 
+                background: 'linear-gradient(135deg, rgba(15, 15, 35, 0.9), rgba(30, 30, 60, 0.8))', 
+                backdropFilter: 'blur(20px)', 
+                border: '1px solid rgba(99, 102, 241, 0.3)', 
+                borderRadius: 2 
+              }}>
                 <CardContent>
-                  <Typography color="text.secondary" gutterBottom>
+                  <Typography sx={{ color: '#a1a1aa', mb: 1 }} gutterBottom>
                     Longest Streak
                   </Typography>
-                  <Typography variant="h4">{stats.longestStreak}</Typography>
+                  <Typography variant="h4" sx={{ color: '#ffffff', fontWeight: 700 }}>{stats.longestStreak}</Typography>
                 </CardContent>
               </Card>
             </Box>
             <Box sx={{ width: { xs: '100%', sm: 'calc(50% - 8px)', md: 'calc(33.333% - 11px)' } }}>
-              <Card>
+              <Card sx={{ 
+                background: 'linear-gradient(135deg, rgba(15, 15, 35, 0.9), rgba(30, 30, 60, 0.8))', 
+                backdropFilter: 'blur(20px)', 
+                border: '1px solid rgba(99, 102, 241, 0.3)', 
+                borderRadius: 2 
+              }}>
                 <CardContent>
-                  <Typography color="text.secondary" gutterBottom>
+                  <Typography sx={{ color: '#a1a1aa', mb: 1 }} gutterBottom>
                     Wins
                   </Typography>
-                  <Typography variant="h4" color="success.main">{stats.wins}</Typography>
+                  <Typography variant="h4" sx={{ color: '#10b981', fontWeight: 700 }}>{stats.wins}</Typography>
                 </CardContent>
               </Card>
             </Box>
             <Box sx={{ width: { xs: '100%', sm: 'calc(50% - 8px)', md: 'calc(33.333% - 11px)' } }}>
-              <Card>
+              <Card sx={{ 
+                background: 'linear-gradient(135deg, rgba(15, 15, 35, 0.9), rgba(30, 30, 60, 0.8))', 
+                backdropFilter: 'blur(20px)', 
+                border: '1px solid rgba(99, 102, 241, 0.3)', 
+                borderRadius: 2 
+              }}>
                 <CardContent>
-                  <Typography color="text.secondary" gutterBottom>
+                  <Typography sx={{ color: '#a1a1aa', mb: 1 }} gutterBottom>
                     Losses
                   </Typography>
-                  <Typography variant="h4" color="error.main">{stats.losses}</Typography>
+                  <Typography variant="h4" sx={{ color: '#ef4444', fontWeight: 700 }}>{stats.losses}</Typography>
                 </CardContent>
               </Card>
             </Box>

@@ -13,8 +13,24 @@ type WhopSdkShape = {
   users: {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     getCurrentUser: (variables?: any, options?: RequestInit) => Promise<any>;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    getUser: (variables: { userId: string }, options?: RequestInit) => Promise<any>;
+    getUser: (variables: { userId: string }, options?: RequestInit) => Promise<{
+      id: string;
+      name?: string;
+      username?: string;
+      profilePicture?: { sourceUrl?: string };
+      city?: string;
+      country?: string;
+      bio?: string;
+      phoneVerified?: boolean;
+      banner?: { sourceUrl?: string };
+      createdAt?: number;
+      userStat?: {
+        moneyEarned24Hours?: number;
+        moneyEarned30Days?: number;
+        moneyEarned7Days?: number;
+        moneyEarnedLifetime?: number;
+      };
+    }>;
   };
   companies: {
     getCompany: (variables: { companyId: string }, options?: RequestInit) => Promise<{
@@ -204,6 +220,31 @@ export async function getWhopProducts(companyId: string): Promise<Array<{
   } catch (error) {
     console.error('Error fetching Whop products:', error);
     return [];
+  }
+}
+
+/**
+ * Get user data from Whop API
+ */
+export async function getWhopUser(userId: string): Promise<{
+  id: string;
+  name?: string;
+  username?: string;
+  profilePicture?: { sourceUrl?: string };
+  city?: string;
+  country?: string;
+  bio?: string;
+  phoneVerified?: boolean;
+  banner?: { sourceUrl?: string };
+  createdAt?: number;
+} | null> {
+  try {
+    const whopSdk = getWhopSdk();
+    const user = await whopSdk.users.getUser({ userId });
+    return user;
+  } catch (error) {
+    console.error('Error fetching Whop user data:', error);
+    return null;
   }
 }
 

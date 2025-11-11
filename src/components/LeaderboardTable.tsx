@@ -16,6 +16,7 @@ import {
   Typography,
   CircularProgress,
   Skeleton,
+  Avatar,
 } from '@mui/material';
 import LocalFireDepartmentIcon from '@mui/icons-material/LocalFireDepartment';
 import { useState, useEffect } from 'react';
@@ -24,6 +25,9 @@ import { motion } from 'framer-motion';
 interface LeaderboardEntry {
   rank: number;
   alias: string;
+  whopDisplayName?: string;
+  whopUsername?: string;
+  whopAvatarUrl?: string;
   winRate: number;
   roi: number;
   plays: number;
@@ -178,7 +182,32 @@ export default function LeaderboardTable() {
                         size="small"
                       />
                     </TableCell>
-                    <TableCell>{entry.alias}</TableCell>
+                    <TableCell>
+                      <Box display="flex" alignItems="center" gap={1.5}>
+                        <Avatar
+                          src={entry.whopAvatarUrl}
+                          alt={entry.alias}
+                          sx={{
+                            width: 32,
+                            height: 32,
+                            border: '2px solid rgba(99, 102, 241, 0.3)',
+                            background: 'linear-gradient(135deg, #6366f1, #ec4899)',
+                          }}
+                        >
+                          {entry.alias.charAt(0).toUpperCase()}
+                        </Avatar>
+                        <Box>
+                          <Typography variant="body2" sx={{ fontWeight: 600, color: '#ffffff' }}>
+                            {entry.whopDisplayName || entry.alias}
+                          </Typography>
+                          {entry.whopUsername && entry.whopUsername !== entry.whopDisplayName && (
+                            <Typography variant="caption" sx={{ color: '#a1a1aa' }}>
+                              @{entry.whopUsername}
+                            </Typography>
+                          )}
+                        </Box>
+                      </Box>
+                    </TableCell>
                     <TableCell align="right">
                       <Chip
                         label={`${entry.winRate.toFixed(2)}%`}

@@ -188,8 +188,11 @@ export async function GET(request: NextRequest) {
 
         return {
           userId: String(user._id),
-          alias: user.alias,
+          alias: user.alias || user.whopDisplayName || user.whopUsername || `User ${user.whopUserId.slice(0, 8)}`,
           whopName: user.whopName || user.alias,
+          whopDisplayName: user.whopDisplayName,
+          whopUsername: user.whopUsername,
+          whopAvatarUrl: user.whopAvatarUrl,
           companyId: user.companyId,
           winRate,
           roi,

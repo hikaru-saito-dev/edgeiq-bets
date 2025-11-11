@@ -13,6 +13,9 @@ export interface IUser extends Document {
   whopUserId: string;
   companyId: string; // Whop company/organization ID
   whopName?: string; // Name of the Whop/company
+  whopUsername?: string; // Username from Whop profile
+  whopDisplayName?: string; // Display name from Whop profile
+  whopAvatarUrl?: string; // Avatar URL from Whop profile
   membershipPlans?: MembershipPlan[]; // Array of membership plans for this Whop
   membershipUrl?: string; // Legacy: Primary membership URL (deprecated, use membershipPlans)
   optIn: boolean;
@@ -40,6 +43,9 @@ const UserSchema = new Schema<IUser>({
   whopUserId: { type: String, required: true, index: true },
   companyId: { type: String, required: true, index: true },
   whopName: { type: String, trim: true },
+  whopUsername: { type: String, trim: true },
+  whopDisplayName: { type: String, trim: true },
+  whopAvatarUrl: { type: String, trim: true },
   membershipPlans: { type: [MembershipPlanSchema], default: [] },
   membershipUrl: { type: String }, // Legacy field for backward compatibility
   optIn: { type: Boolean, default: true },
