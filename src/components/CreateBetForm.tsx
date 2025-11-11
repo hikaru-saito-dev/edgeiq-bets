@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Box,
   Typography,
@@ -43,6 +43,22 @@ interface Game {
   startTime: string;
 }
 
+interface Player {
+  id: number;
+  name: string;
+  firstName: string;
+  lastName: string;
+  position: string;
+  team: string | null;
+  number?: number | null;
+  status?: string;
+  active?: boolean;
+  experience?: number;
+  height?: string;
+  weight?: number;
+  college?: string;
+}
+
 interface CreateBetFormProps {
   open: boolean;
   onClose: () => void;
@@ -57,6 +73,12 @@ export default function CreateBetForm({ open, onClose, onSuccess }: CreateBetFor
   const [gameResults, setGameResults] = useState<Game[]>([]);
   const [selectedGame, setSelectedGame] = useState<Game | null>(null);
   const [showAdvanced, setShowAdvanced] = useState(false);
+  
+  // Player search state
+  const [searchingPlayers, setSearchingPlayers] = useState(false);
+  const [playerSearchQuery, setPlayerSearchQuery] = useState('');
+  const [playerResults, setPlayerResults] = useState<Player[]>([]);
+  const [selectedPlayer, setSelectedPlayer] = useState<Player | null>(null);
   
   // Form state
   const [marketType, setMarketType] = useState<MarketType>('ML');
@@ -101,11 +123,80 @@ export default function CreateBetForm({ open, onClose, onSuccess }: CreateBetFor
     setSelectedGame(game);
     // Reset selection when game changes
     setSelection('');
+    setPlayerName('');
+    setSelectedPlayer(null);
+    setPlayerResults([]);
     if (game) {
       // Auto-fill form fields from selected game
       // Fields are already in game object
     }
   };
+
+  // Search for players
+  const searchPlayers = async (query: string) => {
+    if (!query || query.trim().length === 0) {
+      setPlayerResults([]);
+      return;
+    }
+    
+    setSearchingPlayers(true);
+    try {
+      const params = new URLSearchParams({ q: query });
+      
+      // If a game is selected, try to filter by teams
+      if (selectedGame) {
+        // Include both teams in search (comma-separated)
+        const teams: string[] = [];
+        if (selectedGame.homeTeam) teams.push(selectedGame.homeTeam);
+        if (selectedGame.awayTeam) teams.push(selectedGame.awayTeam);
+        if (teams.length > 0) {
+          params.append('team', teams.join(','));
+        }
+        // Map sport to API format
+        if (selectedGame.sport) {
+          const sportMap: Record<string, string> = {
+            'NFL': 'nfl',
+            'NBA': 'nba',
+            'MLB': 'mlb',
+            'NHL': 'nhl',
+            'NCAAF': 'ncaaf',
+            'NCAAB': 'ncaab',
+          };
+          const sportKey = sportMap[selectedGame.sport] || selectedGame.sport.toLowerCase();
+          params.append('sport', sportKey);
+        }
+      }
+      
+      const response = await fetch(`/api/players/search?${params.toString()}`);
+      if (!response.ok) throw new Error('Failed to search players');
+      const data = await response.json();
+      setPlayerResults(data.players || []);
+    } catch (error) {
+      console.error('Error searching players:', error);
+      setPlayerResults([]);
+    } finally {
+      setSearchingPlayers(false);
+    }
+  };
+
+  // Debounced player search
+  useEffect(() => {
+    if (!selectedGame || marketType !== 'Player Prop') {
+      setPlayerResults([]);
+      return;
+    }
+
+    const timeoutId = setTimeout(() => {
+      if (playerSearchQuery.trim().length > 0) {
+        searchPlayers(playerSearchQuery);
+      } else {
+        setPlayerResults([]);
+      }
+    }, 300);
+
+    return () => clearTimeout(timeoutId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [playerSearchQuery, selectedGame, marketType]);
 
   // Calculate preview values
   const calculatePreview = () => {
@@ -236,6 +327,9 @@ export default function CreateBetForm({ open, onClose, onSuccess }: CreateBetFor
       setNotes('');
       setSlipImageUrl('');
       setShowAdvanced(false);
+      setSelectedPlayer(null);
+      setPlayerSearchQuery('');
+      setPlayerResults([]);
 
       toast.showSuccess('Bet created successfully!');
       onSuccess();
@@ -379,17 +473,74 @@ export default function CreateBetForm({ open, onClose, onSuccess }: CreateBetFor
       case 'Player Prop':
         return (
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-            <TextField
-              fullWidth
-              label="Player Name *"
-              value={playerName}
-              onChange={(e) => setPlayerName(e.target.value)}
-              required
-              sx={{
-                '& .MuiOutlinedInput-root': { color: '#ffffff' },
-                '& .MuiInputLabel-root': { color: '#a1a1aa' },
-                '& fieldset': { borderColor: 'rgba(99, 102, 241, 0.3)' },
+            {!selectedGame && (
+              <Typography variant="caption" sx={{ color: '#fbbf24', mb: -1 }}>
+                Please select a game first to search players
+              </Typography>
+            )}
+            <Autocomplete
+              options={playerResults}
+              getOptionLabel={(option) => {
+                if (typeof option === 'string') return option;
+                return `${option.name}${option.team ? ` (${option.team})` : ''}${option.position ? ` - ${option.position}` : ''}`;
               }}
+              value={selectedPlayer}
+              onChange={(_, newValue) => {
+                setSelectedPlayer(newValue);
+                setPlayerName(newValue ? newValue.name : '');
+              }}
+              onInputChange={(_, newInputValue) => {
+                setPlayerSearchQuery(newInputValue);
+              }}
+              inputValue={playerSearchQuery}
+              loading={searchingPlayers}
+              disabled={!selectedGame}
+              filterOptions={(x) => x} // Disable client-side filtering, we do it server-side
+              renderInput={(params) => (
+                <TextField
+                  {...params}
+                  label="Player Name *"
+                  required
+                  placeholder={selectedGame ? "Search for a player..." : "Select a game first"}
+                  sx={{
+                    '& .MuiOutlinedInput-root': { color: '#ffffff' },
+                    '& .MuiInputLabel-root': { color: '#a1a1aa' },
+                    '& fieldset': { borderColor: 'rgba(99, 102, 241, 0.3)' },
+                    '&.Mui-disabled': {
+                      backgroundColor: 'rgba(255, 255, 255, 0.05)',
+                    },
+                  }}
+                  InputProps={{
+                    ...params.InputProps,
+                    startAdornment: (
+                      <>
+                        <InputAdornment position="start">
+                          <SearchIcon sx={{ color: '#6366f1' }} />
+                        </InputAdornment>
+                        {params.InputProps.startAdornment}
+                      </>
+                    ),
+                    endAdornment: (
+                      <>
+                        {searchingPlayers ? <CircularProgress size={20} sx={{ color: '#6366f1' }} /> : null}
+                        {params.InputProps.endAdornment}
+                      </>
+                    ),
+                  }}
+                />
+              )}
+              renderOption={(props, option) => (
+                <Box component="li" {...props} key={option.id}>
+                  <Box>
+                    <Typography sx={{ color: '#ffffff', fontWeight: 600 }}>
+                      {option.name}
+                    </Typography>
+                    <Typography variant="caption" sx={{ color: '#a1a1aa' }}>
+                      {option.position}{option.team ? ` • ${option.team}` : ''}{option.number ? ` • #${option.number}` : ''}
+                    </Typography>
+                  </Box>
+                </Box>
+              )}
             />
             <TextField
               fullWidth
@@ -580,6 +731,9 @@ export default function CreateBetForm({ open, onClose, onSuccess }: CreateBetFor
                   setPlayerName('');
                   setStatType('');
                   setParlaySummary('');
+                  setSelectedPlayer(null);
+                  setPlayerSearchQuery('');
+                  setPlayerResults([]);
                 }}
                 label="Market Type *"
                 sx={{
