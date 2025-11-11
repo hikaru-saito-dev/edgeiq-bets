@@ -67,6 +67,16 @@ export default function LeaderboardTable() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [range, page, pageSize]);
 
+  // Debounced search-as-you-type
+  useEffect(() => {
+    const handle = setTimeout(() => {
+      setPage(1);
+      fetchLeaderboard();
+    }, 300);
+    return () => clearTimeout(handle);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [search]);
+
   const getRoiColor = (roi: number) => (roi >= 0 ? 'success' : 'error');
 
   return (

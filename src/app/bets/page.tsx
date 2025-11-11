@@ -8,12 +8,19 @@ import {
   Container,
   Paper,
   CircularProgress,
+  TextField,
+  InputAdornment,
+  IconButton,
+  FormControl,
+  Select,
+  MenuItem,
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import BetCard from '@/components/BetCard';
 import CreateBetForm from '@/components/CreateBetForm';
 import { useToast } from '@/components/ToastProvider';
 import { motion, AnimatePresence } from 'framer-motion';
+import SearchIcon from '@mui/icons-material/Search';
 
 interface Bet {
   _id: string;
@@ -37,22 +44,27 @@ export default function BetsPage() {
   const [pageSize, setPageSize] = useState(10);
   const [totalPages, setTotalPages] = useState(1);
   const [search, setSearch] = useState('');
-  const [groupField, setGroupField] = useState<'sport' | 'league' | 'marketType' | ''>('');
-  const [groupValue, setGroupValue] = useState('');
-  const [groups, setGroups] = useState<Array<{ key: string; count: number }>>([]);
 
   useEffect(() => {
     fetchBets();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [page, pageSize, groupField, groupValue]);
+  }, [page, pageSize]);
+
+  // Debounced search-as-you-type
+  useEffect(() => {
+    const handle = setTimeout(() => {
+      setPage(1);
+      fetchBets();
+    }, 300);
+    return () => clearTimeout(handle);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [search]);
 
   const fetchBets = async () => {
     try {
       setLoading(true);
       const params = new URLSearchParams({ page: String(page), pageSize: String(pageSize) });
       if (search.trim()) params.set('search', search.trim());
-      if (groupField) params.set('groupField', groupField);
-      if (groupValue) params.set('groupValue', groupValue);
       const response = await fetch(`/api/bets?${params.toString()}`);
       if (!response.ok) {
         const error = await response.json().catch(() => ({ error: 'Failed to fetch bets' }));
@@ -61,7 +73,6 @@ export default function BetsPage() {
       const data = await response.json();
       setBets(data.bets || []);
       setTotalPages(data.totalPages || 1);
-      if (data.groups) setGroups(data.groups);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to fetch bets';
       toast.showError(message);
@@ -120,65 +131,58 @@ export default function BetsPage() {
           </Button>
         </Box>
 
-        {/* Search & Group filters */}
+        {/* Search & Pagination controls */}
         <Box display="flex" gap={2} flexWrap="wrap" mb={3}>
-          <Paper sx={{ p: 1.5, display: 'flex', gap: 1, alignItems: 'center' }}>
-            <input
+          <Paper sx={{ p: 1.5, display: 'flex', alignItems: 'center', gap: 1, bgcolor: 'rgba(17, 24, 39, 0.6)', backdropFilter: 'blur(6px)' }}>
+            <TextField
+              variant="outlined"
+              size="small"
+              placeholder="Search bets (team, sport, league, market, notes)"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               onKeyDown={(e) => { if (e.key === 'Enter') { setPage(1); fetchBets(); } }}
-              placeholder="Search bets (team, sport, league, market, notes)"
-              style={{
-                background: 'transparent',
-                border: 'none',
-                outline: 'none',
-                color: '#fff',
-                width: 320,
+              sx={{
+                minWidth: 320,
+                '& .MuiOutlinedInput-root': {
+                  color: '#fff',
+                  '& fieldset': { borderColor: 'rgba(99, 102, 241, 0.3)' },
+                  '&:hover fieldset': { borderColor: 'rgba(99, 102, 241, 0.5)' },
+                },
+              }}
+              InputProps={{
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <SearchIcon sx={{ color: '#a1a1aa' }} />
+                  </InputAdornment>
+                ),
+                endAdornment: (
+                  <InputAdornment position="end">
+                    <IconButton size="small" onClick={() => { setPage(1); fetchBets(); }}>
+                      <SearchIcon />
+                    </IconButton>
+                  </InputAdornment>
+                ),
               }}
             />
-            <Button size="small" variant="outlined" onClick={() => { setPage(1); fetchBets(); }}>
-              Search
-            </Button>
           </Paper>
 
-          <Paper sx={{ p: 1.5, display: 'flex', gap: 1, alignItems: 'center' }}>
-            <select
-              value={groupField}
-              onChange={(e) => { setGroupField(e.target.value as 'sport' | 'league' | 'marketType' | ''); setGroupValue(''); setPage(1); }}
-              style={{ background: 'transparent', color: '#fff', border: '1px solid rgba(99,102,241,0.3)', borderRadius: 6, padding: '8px 10px' }}
-            >
-              <option value="" style={{ color: '#000' }}>No Group</option>
-              <option value="sport" style={{ color: '#000' }}>Group by Sport</option>
-              <option value="league" style={{ color: '#000' }}>Group by League</option>
-              <option value="marketType" style={{ color: '#000' }}>Group by Market</option>
-            </select>
-            {groupField && (
-              <select
-                value={groupValue}
-                onChange={(e) => { setGroupValue(e.target.value); setPage(1); fetchBets(); }}
-                style={{ background: 'transparent', color: '#fff', border: '1px solid rgba(99,102,241,0.3)', borderRadius: 6, padding: '8px 10px' }}
-              >
-                <option value="" style={{ color: '#000' }}>All</option>
-                {groups.map((g) => (
-                  <option key={g.key} value={g.key} style={{ color: '#000' }}>
-                    {g.key} ({g.count})
-                  </option>
-                ))}
-              </select>
-            )}
-          </Paper>
-
-          <Paper sx={{ p: 1.5, display: 'flex', gap: 1, alignItems: 'center' }}>
+          <Paper sx={{ p: 1.5, display: 'flex', gap: 1.5, alignItems: 'center', bgcolor: 'rgba(17, 24, 39, 0.6)', backdropFilter: 'blur(6px)' }}>
             <Typography variant="body2" color="text.secondary">Page size</Typography>
-            <select
-              value={pageSize}
-              onChange={(e) => { setPageSize(parseInt(e.target.value, 10)); setPage(1); }}
-              style={{ background: 'transparent', color: '#fff', border: '1px solid rgba(99,102,241,0.3)', borderRadius: 6, padding: '8px 10px' }}
-            >
-              {[10, 20, 50].map((s) => (
-                <option key={s} value={s} style={{ color: '#000' }}>{s}</option>
-              ))}
-            </select>
+            <FormControl size="small">
+              <Select
+                value={pageSize}
+                onChange={(e) => { setPageSize(e.target.value as number); setPage(1); }}
+                sx={{
+                  minWidth: 80,
+                  color: '#fff',
+                  '& .MuiOutlinedInput-notchedOutline': { borderColor: 'rgba(99, 102, 241, 0.3)' },
+                }}
+              >
+                {[10, 20, 50].map((s) => (
+                  <MenuItem key={s} value={s}>{s}</MenuItem>
+                ))}
+              </Select>
+            </FormControl>
           </Paper>
         </Box>
       </motion.div>
