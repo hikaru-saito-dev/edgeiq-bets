@@ -175,26 +175,7 @@ export default function BetCard({ bet, onUpdate }: BetCardProps) {
             />
           </Box>
 
-          {bet.locked && (
-            <Box 
-              display="flex" 
-              alignItems="center" 
-              gap={0.5} 
-              mb={2}
-              sx={{ 
-                p: 1, 
-                bgcolor: 'warning.light', 
-                borderRadius: 1,
-                border: '1px solid',
-                borderColor: 'warning.main'
-              }}
-            >
-              <LockIcon fontSize="small" sx={{ color: '#fbbf24' }} />
-              <Typography variant="caption" sx={{ color: '#fbbf24', fontWeight: 600 }}>
-                Locked - Event has started. No edits allowed.
-              </Typography>
-            </Box>
-          )}
+          
 
           <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, mb: 2 }}>
             <Box 
