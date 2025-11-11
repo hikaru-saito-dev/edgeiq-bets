@@ -404,7 +404,7 @@ export default function ProfileForm() {
 
           {/* Charts Section */}
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3, mb: 4 }}>
-            {/* First Row: Pie Chart and Bar Chart */}
+            {/* First Row: Pie Chart */}
             <Box sx={{ display: 'flex', flexDirection: { xs: 'column', lg: 'row' }, gap: 3 }}>
               {/* Pie Chart */}
               <Paper sx={{ 
@@ -457,57 +457,7 @@ export default function ProfileForm() {
                   </Box>
                 )}
               </Paper>
-
-                {/* Bar Chart */}
-                <Paper sx={{ 
-                  p: 3, 
-                  flex: 1,
-                  background: 'linear-gradient(135deg, rgba(15, 15, 35, 0.9), rgba(30, 30, 60, 0.8))', 
-                  backdropFilter: 'blur(20px)', 
-                  border: '1px solid rgba(99, 102, 241, 0.3)', 
-                  borderRadius: 2 
-                }}>
-                  <Typography variant="h6" mb={2} sx={{ color: '#ffffff', fontWeight: 600 }}>
-                    Bet Results Comparison
-                  </Typography>
-                  {barData.length > 0 && barData.some(d => d.value > 0) ? (
-                    <ResponsiveContainer width="100%" height={300}>
-                      <BarChart data={barData}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="rgba(99, 102, 241, 0.2)" />
-                        <XAxis 
-                          dataKey="name" 
-                          stroke="#a1a1aa"
-                          tick={{ fill: '#a1a1aa' }}
-                        />
-                        <YAxis 
-                          stroke="#a1a1aa"
-                          tick={{ fill: '#a1a1aa' }}
-                        />
-                        <Tooltip 
-                          contentStyle={{ 
-                            backgroundColor: 'rgba(15, 15, 35, 0.95)', 
-                            border: '1px solid rgba(99, 102, 241, 0.3)',
-                            borderRadius: '8px',
-                            color: '#ffffff'
-                          }}
-                        />
-                        <Bar dataKey="value" radius={[8, 8, 0, 0]} fill="#6366f1">
-                          {barData.map((entry, index) => (
-                            <Cell key={`cell-${index}`} fill={entry.color} />
-                          ))}
-                        </Bar>
-                      </BarChart>
-                    </ResponsiveContainer>
-                  ) : (
-                    <Box sx={{ height: 300, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                      <Typography sx={{ color: '#a1a1aa', textAlign: 'center' }}>
-                        No bet data available yet.<br />
-                        Create your first bet to see the comparison!
-                      </Typography>
-                    </Box>
-                  )}
-                </Paper>
-              </Box>
+            </Box>
 
               {/* Second Row: Line Charts for Performance Trends */}
               <Box sx={{ display: 'flex', flexDirection: { xs: 'column', lg: 'row' }, gap: 3 }}>
@@ -626,7 +576,7 @@ export default function ProfileForm() {
                   </Paper>
                 </Box>
 
-              {/* Third Row: Units P/L Trend and Monthly Performance */}
+              {/* Third Row: Units P/L Trend */}
               <Box sx={{ display: 'flex', flexDirection: { xs: 'column', lg: 'row' }, gap: 3 }}>
                   {/* Units P/L Trend */}
                   <Paper sx={{ 
@@ -683,56 +633,6 @@ export default function ProfileForm() {
                         <Typography sx={{ color: '#a1a1aa', textAlign: 'center' }}>
                           No trend data available yet.<br />
                           Settle some bets to see your units P/L trend!
-                        </Typography>
-                      </Box>
-                    )}
-                  </Paper>
-
-                  {/* Monthly Performance Bar Chart */}
-                  <Paper sx={{ 
-                    p: 3, 
-                    flex: 1,
-                    background: 'linear-gradient(135deg, rgba(15, 15, 35, 0.9), rgba(30, 30, 60, 0.8))', 
-                    backdropFilter: 'blur(20px)', 
-                    border: '1px solid rgba(99, 102, 241, 0.3)', 
-                    borderRadius: 2 
-                  }}>
-                    <Typography variant="h6" mb={2} sx={{ color: '#ffffff', fontWeight: 600 }}>
-                      Monthly Performance
-                    </Typography>
-                    {monthlyData.length > 0 ? (
-                      <ResponsiveContainer width="100%" height={300}>
-                        <BarChart data={monthlyData}>
-                          <CartesianGrid strokeDasharray="3 3" stroke="rgba(99, 102, 241, 0.2)" />
-                          <XAxis 
-                            dataKey="month" 
-                            stroke="#a1a1aa"
-                            tick={{ fill: '#a1a1aa', fontSize: 12 }}
-                          />
-                          <YAxis 
-                            stroke="#a1a1aa"
-                            tick={{ fill: '#a1a1aa' }}
-                          />
-                          <Tooltip 
-                            contentStyle={{ 
-                              backgroundColor: 'rgba(15, 15, 35, 0.95)', 
-                              border: '1px solid rgba(99, 102, 241, 0.3)',
-                              borderRadius: '8px',
-                              color: '#ffffff'
-                            }}
-                          />
-                          <Legend 
-                            wrapperStyle={{ color: '#ffffff' }}
-                          />
-                          <Bar dataKey="wins" stackId="a" fill="#10b981" radius={[0, 0, 0, 0]} />
-                          <Bar dataKey="losses" stackId="a" fill="#ef4444" radius={[8, 8, 0, 0]} />
-                        </BarChart>
-                      </ResponsiveContainer>
-                    ) : (
-                      <Box sx={{ height: 300, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                        <Typography sx={{ color: '#a1a1aa', textAlign: 'center' }}>
-                          No monthly data available yet.<br />
-                          Settle some bets to see your monthly performance!
                         </Typography>
                       </Box>
                     )}
