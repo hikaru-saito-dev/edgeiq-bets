@@ -237,7 +237,6 @@ export default function ProfileForm() {
         }
         existing.total += 1;
         
-        const winRate = existing.total > 0 ? (existing.wins / existing.total) * 100 : 0;
         existing.roi = existing.total > 0 ? (existing.unitsPL / (existing.total * bet.units)) * 100 : 0;
         
         dateMap.set(date, existing);
@@ -245,13 +244,11 @@ export default function ProfileForm() {
 
     // Convert to cumulative data
     let cumulativeWins = 0;
-    let cumulativeLosses = 0;
     let cumulativeUnitsPL = 0;
     let cumulativeTotal = 0;
 
     return Array.from(dateMap.values()).map((day) => {
       cumulativeWins += day.wins;
-      cumulativeLosses += day.losses;
       cumulativeUnitsPL += day.unitsPL;
       cumulativeTotal += day.total;
       

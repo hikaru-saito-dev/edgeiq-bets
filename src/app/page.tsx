@@ -1,6 +1,6 @@
 'use client';
 
-import { Container, Typography, Box, Button, Paper } from '@mui/material';
+import { Container, Typography, Box, Button } from '@mui/material';
 import Link from 'next/link';
 import { motion } from 'framer-motion';
 

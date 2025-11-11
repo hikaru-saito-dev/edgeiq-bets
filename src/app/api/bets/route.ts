@@ -4,7 +4,13 @@ import { verifyWhopUser, getWhopCompany, getWhopUser } from '@/lib/whop';
 import { Bet, IBet } from '@/models/Bet';
 import { User } from '@/models/User';
 import { Log } from '@/models/Log';
-import { createBetSchema, updateBetSchema, settleBetSchema } from '@/utils/validateBet';
+import { 
+  createBetSchema, 
+  createBetSchemaLegacy,
+  updateBetSchema, 
+  settleBetSchema 
+} from '@/utils/validateBet';
+import { z } from 'zod';
 import { updateUserStats } from '@/lib/stats';
 
 export const runtime = 'nodejs';
@@ -90,17 +96,50 @@ export async function POST(request: NextRequest) {
     const { userId, companyId } = authInfo;
 
     const body = await request.json();
-    const validated = createBetSchema.parse(body);
+    
+    // Try new schema first, fall back to legacy if it fails
+    let validatedNew: z.infer<typeof createBetSchema> | null = null;
+    let validatedLegacy: z.infer<typeof createBetSchemaLegacy> | null = null;
+    let isLegacy = false;
+    
+    try {
+      validatedNew = createBetSchema.parse(body);
+    } catch {
+      // Fall back to legacy schema for backward compatibility
+      try {
+        validatedLegacy = createBetSchemaLegacy.parse(body);
+        isLegacy = true;
+      } catch {
+        return NextResponse.json(
+          { error: 'Validation error' },
+          { status: 400 }
+        );
+      }
+    }
 
     // Find or create user
     let user = await User.findOne({ whopUserId: userId, companyId: companyId || 'default' });
     if (!user) {
+      // Fetch user data from Whop API
+      const whopUserData = await getWhopUser(userId);
+      
+      // Get company info if available
+      let companyInfo = null;
+      if (companyId) {
+        companyInfo = await getWhopCompany(companyId);
+      }
+
       // Create user if doesn't exist
       user = await User.create({
         whopUserId: userId,
         companyId: companyId || 'default',
-        alias: `User ${userId.slice(0, 8)}`,
+        alias: whopUserData?.name || whopUserData?.username || `User ${userId.slice(0, 8)}`,
+        whopName: companyInfo?.name,
+        whopUsername: whopUserData?.username,
+        whopDisplayName: whopUserData?.name,
+        whopAvatarUrl: whopUserData?.profilePicture?.sourceUrl,
         optIn: true,
+        membershipPlans: [],
         stats: {
           winRate: 0,
           roi: 0,
@@ -111,26 +150,93 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // Check if bet is already locked (startTime has passed)
-    const locked = new Date() >= validated.startTime;
+    // Determine startTime and create bet data
+    let startTime: Date;
+    let betData: Record<string, unknown>;
+    
+    if (isLegacy && validatedLegacy) {
+      // Legacy format
+      startTime = validatedLegacy.startTime;
+      const locked = new Date() >= startTime;
+      
+      betData = {
+        userId: user._id,
+        startTime,
+        units: validatedLegacy.units,
+        result: 'pending' as const,
+        locked,
+        companyId: companyId || undefined,
+        eventName: validatedLegacy.eventName,
+        odds: validatedLegacy.odds,
+        oddsFormat: 'decimal' as const,
+        marketType: 'ML' as const,
+      };
+    } else if (validatedNew) {
+      // New format
+      startTime = validatedNew.game.startTime;
+      const locked = new Date() >= startTime;
+      
+      betData = {
+        userId: user._id,
+        startTime,
+        units: validatedNew.units,
+        result: 'pending' as const,
+        locked,
+        companyId: companyId || undefined,
+        eventName: validatedNew.eventName,
+        sport: validatedNew.game.sport,
+        league: validatedNew.game.league,
+        homeTeam: validatedNew.game.homeTeam,
+        awayTeam: validatedNew.game.awayTeam,
+        homeTeamId: validatedNew.game.homeTeamId,
+        awayTeamId: validatedNew.game.awayTeamId,
+        provider: validatedNew.game.provider,
+        providerEventId: validatedNew.game.providerEventId,
+        marketType: validatedNew.market.marketType,
+        ...(validatedNew.market.marketType === 'ML' && { selection: validatedNew.market.selection }),
+        ...(validatedNew.market.marketType === 'Spread' && { 
+          selection: validatedNew.market.selection,
+          line: validatedNew.market.line,
+        }),
+        ...(validatedNew.market.marketType === 'Total' && { 
+          line: validatedNew.market.line,
+          overUnder: validatedNew.market.overUnder,
+        }),
+        ...(validatedNew.market.marketType === 'Player Prop' && { 
+          playerName: validatedNew.market.playerName,
+          statType: validatedNew.market.statType,
+          line: validatedNew.market.line,
+          overUnder: validatedNew.market.overUnder,
+        }),
+        ...(validatedNew.market.marketType === 'Parlay' && { 
+          parlaySummary: validatedNew.market.parlaySummary,
+        }),
+        odds: validatedNew.oddsDecimal,
+        oddsFormat: validatedNew.odds.oddsFormat,
+        oddsAmerican: validatedNew.oddsAmerican,
+        book: validatedNew.book,
+        notes: validatedNew.notes,
+        slipImageUrl: validatedNew.slipImageUrl,
+      };
+    } else {
+      return NextResponse.json(
+        { error: 'Invalid request data' },
+        { status: 400 }
+      );
+    }
 
-    // Create bet
-    const bet = await Bet.create({
-      userId: user._id,
-      eventName: validated.eventName,
-      startTime: validated.startTime,
-      odds: validated.odds,
-      units: validated.units,
-      result: 'pending',
-      locked,
-    });
+    const bet = await Bet.create(betData);
 
     // Log the action
     await Log.create({
       userId: user._id,
       betId: bet._id,
       action: 'bet_created',
-      metadata: { eventName: validated.eventName, odds: validated.odds, units: validated.units },
+      metadata: isLegacy && validatedLegacy
+        ? { eventName: validatedLegacy.eventName, odds: validatedLegacy.odds, units: validatedLegacy.units }
+        : validatedNew
+        ? { marketType: validatedNew.market.marketType, odds: validatedNew.oddsDecimal, units: validatedNew.units }
+        : {},
     });
 
     return NextResponse.json({ bet }, { status: 201 });
@@ -209,23 +315,20 @@ export async function PATCH(request: NextRequest) {
       );
     }
     
-    // Check 3: If updating startTime, ensure it's in the future
-    if (validated.startTime) {
-      const newStartTime = new Date(validated.startTime);
-      if (newStartTime <= now) {
-        return NextResponse.json(
-          { error: 'Start time must be in the future' },
-          { status: 400 }
-        );
-      }
-    }
-
-    // Update bet
-    Object.assign(bet, validated);
+    // Update bet (startTime cannot be updated after creation)
+    // Only allow updating optional fields: book, notes, slipImageUrl
+    // Legacy: also allow updating eventName, odds, units if provided
+    if (validated.book !== undefined) bet.book = validated.book;
+    if (validated.notes !== undefined) bet.notes = validated.notes;
+    if (validated.slipImageUrl !== undefined) bet.slipImageUrl = validated.slipImageUrl;
+    
+    // Legacy fields (for backward compatibility)
+    if (validated.eventName !== undefined) bet.eventName = validated.eventName;
+    if (validated.odds !== undefined) bet.odds = validated.odds;
+    if (validated.units !== undefined) bet.units = validated.units;
     
     // Final check: Re-validate lock status after update
-    const finalStartTime = validated.startTime ? new Date(validated.startTime) : bet.startTime;
-    if (now >= finalStartTime) {
+    if (now >= bet.startTime) {
       bet.locked = true;
     }
     

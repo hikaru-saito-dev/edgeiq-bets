@@ -32,12 +32,14 @@ export function calculateStats(bets: IBet[]): BetSummary {
   const winRate = actionableBets > 0 ? (wins / actionableBets) * 100 : 0;
 
   // Calculate units P/L
-  // Win: +units * (odds - 1)
+  // Win: profit based on odds (odds stored as decimal)
   // Loss: -units
   // Push/Void: 0
+  // Note: odds are always stored as decimal format in DB
   let unitsPL = 0;
   settledBets.forEach(bet => {
     if (bet.result === 'win') {
+      // Decimal odds: profit = units * (odds - 1)
       unitsPL += bet.units * (bet.odds - 1);
     } else if (bet.result === 'loss') {
       unitsPL -= bet.units;
