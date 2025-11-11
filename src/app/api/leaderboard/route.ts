@@ -17,6 +17,9 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const range = (searchParams.get('range') || 'all') as 'all' | '30d' | '7d';
     const companyFilter = searchParams.get('companyId');
+    const page = Math.max(1, parseInt(searchParams.get('page') || '1', 10));
+    const pageSize = Math.min(100, Math.max(1, parseInt(searchParams.get('pageSize') || '10', 10)));
+    const search = (searchParams.get('search') || '').trim();
 
     const query: Record<string, unknown> = { optIn: true };
     if (companyFilter) {
@@ -25,7 +28,26 @@ export async function GET(request: NextRequest) {
       query.companyId = companyIdFromAuth;
     }
 
-    const users = await User.find(query).lean();
+    if (search) {
+      const regex = new RegExp(search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
+      Object.assign(query, {
+        $or: [
+          { alias: regex },
+          { whopDisplayName: regex },
+          { whopUsername: regex },
+        ],
+      });
+    }
+
+    const total = await User.countDocuments(query);
+
+    // Fetch page of users only
+    const users = await User.find(query)
+      .sort({ createdAt: -1 })
+      .skip((page - 1) * pageSize)
+      .limit(pageSize)
+      .lean();
+
     const leaderboard = await Promise.all(
       users.map(async (userRaw) => {
         const user = userRaw as unknown as IUser;
@@ -89,6 +111,7 @@ export async function GET(request: NextRequest) {
       })
     );
 
+    // Sort page locally by ROI then Win% (page-sized only)
     leaderboard.sort((a, b) => {
       if (b.roi !== a.roi) return b.roi - a.roi;
       return b.winRate - a.winRate;
@@ -96,12 +119,16 @@ export async function GET(request: NextRequest) {
 
     const rankedLeaderboard = leaderboard.map((entry, index) => ({
       ...entry,
-      rank: index + 1,
+      rank: (page - 1) * pageSize + index + 1,
     }));
 
     return NextResponse.json({ 
       leaderboard: rankedLeaderboard,
       range,
+      page,
+      pageSize,
+      total,
+      totalPages: Math.ceil(total / pageSize),
     });
   } catch (error) {
     console.error('Error fetching leaderboard:', error);

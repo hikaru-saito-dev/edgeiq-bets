@@ -32,20 +32,36 @@ export default function BetsPage() {
   const [loading, setLoading] = useState(true);
   const [createOpen, setCreateOpen] = useState(false);
 
+  // Pagination & search
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+  const [totalPages, setTotalPages] = useState(1);
+  const [search, setSearch] = useState('');
+  const [groupField, setGroupField] = useState<'sport' | 'league' | 'marketType' | ''>('');
+  const [groupValue, setGroupValue] = useState('');
+  const [groups, setGroups] = useState<Array<{ key: string; count: number }>>([]);
+
   useEffect(() => {
     fetchBets();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [page, pageSize, groupField, groupValue]);
 
   const fetchBets = async () => {
     try {
-      const response = await fetch('/api/bets');
+      setLoading(true);
+      const params = new URLSearchParams({ page: String(page), pageSize: String(pageSize) });
+      if (search.trim()) params.set('search', search.trim());
+      if (groupField) params.set('groupField', groupField);
+      if (groupValue) params.set('groupValue', groupValue);
+      const response = await fetch(`/api/bets?${params.toString()}`);
       if (!response.ok) {
         const error = await response.json().catch(() => ({ error: 'Failed to fetch bets' }));
         throw new Error(error.error || 'Failed to fetch bets');
       }
       const data = await response.json();
       setBets(data.bets || []);
+      setTotalPages(data.totalPages || 1);
+      if (data.groups) setGroups(data.groups);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to fetch bets';
       toast.showError(message);
@@ -62,7 +78,7 @@ export default function BetsPage() {
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.6 }}
       >
-        <Box display="flex" justifyContent="space-between" alignItems="center" mb={4} flexWrap="wrap" gap={2}>
+        <Box display="flex" justifyContent="space-between" alignItems="center" mb={2} flexWrap="wrap" gap={2}>
           <Box>
             <Typography 
               variant="h4" 
@@ -102,6 +118,68 @@ export default function BetsPage() {
           >
             Create Bet
           </Button>
+        </Box>
+
+        {/* Search & Group filters */}
+        <Box display="flex" gap={2} flexWrap="wrap" mb={3}>
+          <Paper sx={{ p: 1.5, display: 'flex', gap: 1, alignItems: 'center' }}>
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') { setPage(1); fetchBets(); } }}
+              placeholder="Search bets (team, sport, league, market, notes)"
+              style={{
+                background: 'transparent',
+                border: 'none',
+                outline: 'none',
+                color: '#fff',
+                width: 320,
+              }}
+            />
+            <Button size="small" variant="outlined" onClick={() => { setPage(1); fetchBets(); }}>
+              Search
+            </Button>
+          </Paper>
+
+          <Paper sx={{ p: 1.5, display: 'flex', gap: 1, alignItems: 'center' }}>
+            <select
+              value={groupField}
+              onChange={(e) => { setGroupField(e.target.value as 'sport' | 'league' | 'marketType' | ''); setGroupValue(''); setPage(1); }}
+              style={{ background: 'transparent', color: '#fff', border: '1px solid rgba(99,102,241,0.3)', borderRadius: 6, padding: '8px 10px' }}
+            >
+              <option value="" style={{ color: '#000' }}>No Group</option>
+              <option value="sport" style={{ color: '#000' }}>Group by Sport</option>
+              <option value="league" style={{ color: '#000' }}>Group by League</option>
+              <option value="marketType" style={{ color: '#000' }}>Group by Market</option>
+            </select>
+            {groupField && (
+              <select
+                value={groupValue}
+                onChange={(e) => { setGroupValue(e.target.value); setPage(1); fetchBets(); }}
+                style={{ background: 'transparent', color: '#fff', border: '1px solid rgba(99,102,241,0.3)', borderRadius: 6, padding: '8px 10px' }}
+              >
+                <option value="" style={{ color: '#000' }}>All</option>
+                {groups.map((g) => (
+                  <option key={g.key} value={g.key} style={{ color: '#000' }}>
+                    {g.key} ({g.count})
+                  </option>
+                ))}
+              </select>
+            )}
+          </Paper>
+
+          <Paper sx={{ p: 1.5, display: 'flex', gap: 1, alignItems: 'center' }}>
+            <Typography variant="body2" color="text.secondary">Page size</Typography>
+            <select
+              value={pageSize}
+              onChange={(e) => { setPageSize(parseInt(e.target.value, 10)); setPage(1); }}
+              style={{ background: 'transparent', color: '#fff', border: '1px solid rgba(99,102,241,0.3)', borderRadius: 6, padding: '8px 10px' }}
+            >
+              {[10, 20, 50].map((s) => (
+                <option key={s} value={s} style={{ color: '#000' }}>{s}</option>
+              ))}
+            </select>
+          </Paper>
         </Box>
       </motion.div>
 
@@ -192,6 +270,11 @@ export default function BetsPage() {
                 </Box>
               </motion.div>
             ))}
+            <Box display="flex" justifyContent="center" mt={3} gap={2} alignItems="center">
+              <Button disabled={page <= 1} onClick={() => setPage((p) => Math.max(1, p - 1))}>Prev</Button>
+              <Typography variant="body2" color="text.secondary">Page {page} / {totalPages}</Typography>
+              <Button disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)}>Next</Button>
+            </Box>
           </Box>
         </AnimatePresence>
       )}
@@ -200,7 +283,7 @@ export default function BetsPage() {
       <CreateBetForm
         open={createOpen}
         onClose={() => setCreateOpen(false)}
-        onSuccess={fetchBets}
+        onSuccess={() => { setPage(1); fetchBets(); }}
       />
     </Container>
   );

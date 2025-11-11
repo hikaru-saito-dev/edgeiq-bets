@@ -17,9 +17,9 @@ export const runtime = 'nodejs';
 
 /**
  * GET /api/bets
- * Get all bets for the authenticated user
+ * Get bets for the authenticated user with pagination, search and grouping
  */
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
     await connectDB();
     const headers = await import('next/headers').then(m => m.headers());
@@ -30,6 +30,14 @@ export async function GET() {
     }
 
     const { userId, companyId } = authInfo;
+
+    // Parse query params
+    const { searchParams } = new URL(request.url);
+    const page = Math.max(1, parseInt(searchParams.get('page') || '1', 10));
+    const pageSize = Math.min(100, Math.max(1, parseInt(searchParams.get('pageSize') || '10', 10)));
+    const search = (searchParams.get('search') || '').trim();
+    const groupField = searchParams.get('groupField'); // e.g., 'sport' | 'league' | 'marketType'
+    const groupValue = searchParams.get('groupValue') || '';
 
     // Find or create user
     let user = await User.findOne({ whopUserId: userId, companyId: companyId || 'default' });
@@ -64,12 +72,79 @@ export async function GET() {
       });
     }
 
-    // Get all bets for this user
-    const bets = await Bet.find({ userId: user._id })
+    // Build query
+    const query: Record<string, unknown> = { userId: user._id };
+
+    if (search) {
+      const regex = new RegExp(search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
+      Object.assign(query, {
+        $or: [
+          { eventName: regex },
+          { sport: regex },
+          { league: regex },
+          { homeTeam: regex },
+          { awayTeam: regex },
+          { selection: regex },
+          { marketType: regex },
+          { book: regex },
+          { notes: regex },
+        ],
+      });
+    }
+
+    if (groupField && groupValue) {
+      // Filter by a specific group value
+      const indexableQuery: Record<string, unknown> = query;
+      indexableQuery[groupField] = groupValue;
+    }
+
+    const total = await Bet.countDocuments(query);
+    const bets = await Bet.find(query)
       .sort({ createdAt: -1 })
+      .skip((page - 1) * pageSize)
+      .limit(pageSize)
       .lean();
 
-    return NextResponse.json({ bets });
+    // Optional aggregation summary by groupField
+    let groups: Array<{ key: string; count: number }> = [];
+    if (groupField && !groupValue) {
+      const pipeline = [
+        { $match: { userId: user._id } },
+        ...(search
+          ? [{
+              $match: {
+                $or: [
+                  { eventName: { $regex: search, $options: 'i' } },
+                  { sport: { $regex: search, $options: 'i' } },
+                  { league: { $regex: search, $options: 'i' } },
+                  { homeTeam: { $regex: search, $options: 'i' } },
+                  { awayTeam: { $regex: search, $options: 'i' } },
+                  { selection: { $regex: search, $options: 'i' } },
+                  { marketType: { $regex: search, $options: 'i' } },
+                  { book: { $regex: search, $options: 'i' } },
+                  { notes: { $regex: search, $options: 'i' } },
+                ],
+              },
+            }]
+          : []),
+        { $group: { _id: `$${groupField}`, count: { $sum: 1 } } },
+        { $sort: { count: -1 as 1 | -1 } },
+      ];
+      const agg = await Bet.aggregate(pipeline);
+      type AggregationGroup = { _id: string; count: number };
+      groups = (agg as AggregationGroup[])
+        .filter((g) => g._id)
+        .map((g) => ({ key: String(g._id), count: g.count }));
+    }
+
+    return NextResponse.json({
+      bets,
+      page,
+      pageSize,
+      total,
+      totalPages: Math.ceil(total / pageSize),
+      ...(groupField ? { groupField, groupValue, groups } : {}),
+    });
   } catch (error) {
     console.error('Error fetching bets:', error);
     return NextResponse.json(
