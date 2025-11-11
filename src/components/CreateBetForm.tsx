@@ -77,7 +77,7 @@ export default function CreateBetForm({ open, onClose, onSuccess }: CreateBetFor
 
   // Search for games
   const searchGames = async (query: string) => {
-    if (!query || query.length < 2) {
+    if (!query || query.trim().length === 0) {
       setGameResults([]);
       return;
     }
@@ -99,6 +99,8 @@ export default function CreateBetForm({ open, onClose, onSuccess }: CreateBetFor
   // Handle game selection
   const handleGameSelect = (game: Game | null) => {
     setSelectedGame(game);
+    // Reset selection when game changes
+    setSelection('');
     if (game) {
       // Auto-fill form fields from selected game
       // Fields are already in game object
@@ -246,41 +248,80 @@ export default function CreateBetForm({ open, onClose, onSuccess }: CreateBetFor
     }
   };
 
+  // Get available teams from selected game
+  const getAvailableTeams = (): string[] => {
+    if (!selectedGame || !selectedGame.homeTeam || !selectedGame.awayTeam) {
+      return [];
+    }
+    return [selectedGame.awayTeam, selectedGame.homeTeam];
+  };
+
+  const availableTeams = getAvailableTeams();
+
   // Render market-specific inputs
   const renderMarketInputs = () => {
     switch (marketType) {
       case 'ML':
         return (
-          <TextField
-            fullWidth
-            label="Team *"
-            value={selection}
-            onChange={(e) => setSelection(e.target.value)}
-            required
-            placeholder={selectedGame ? `Select ${selectedGame.homeTeam} or ${selectedGame.awayTeam}` : 'Enter team name'}
-            sx={{
-              '& .MuiOutlinedInput-root': { color: '#ffffff' },
-              '& .MuiInputLabel-root': { color: '#a1a1aa' },
-              '& fieldset': { borderColor: 'rgba(99, 102, 241, 0.3)' },
-            }}
-          />
+          <FormControl fullWidth required>
+            <InputLabel sx={{ color: '#a1a1aa' }}>Team *</InputLabel>
+            <Select
+              value={selection}
+              onChange={(e) => setSelection(e.target.value)}
+              label="Team *"
+              disabled={!selectedGame || availableTeams.length === 0}
+              sx={{
+                color: '#ffffff',
+                '& .MuiOutlinedInput-notchedOutline': { borderColor: 'rgba(99, 102, 241, 0.3)' },
+                '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: 'rgba(99, 102, 241, 0.5)' },
+                '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: '#6366f1' },
+                '&.Mui-disabled': { color: 'rgba(255, 255, 255, 0.5)' },
+              }}
+            >
+              {availableTeams.map((team) => (
+                <MenuItem key={team} value={team} sx={{ color: '#ffffff' }}>
+                  {team}
+                </MenuItem>
+              ))}
+            </Select>
+            {!selectedGame && (
+              <Typography variant="caption" sx={{ color: '#a1a1aa', mt: 0.5 }}>
+                Please select a game first
+              </Typography>
+            )}
+          </FormControl>
         );
       
       case 'Spread':
         return (
           <Box sx={{ display: 'flex', gap: 2, flexDirection: { xs: 'column', sm: 'row' } }}>
-            <TextField
-              fullWidth
-              label="Team *"
-              value={selection}
-              onChange={(e) => setSelection(e.target.value)}
-              required
-              sx={{
-                '& .MuiOutlinedInput-root': { color: '#ffffff' },
-                '& .MuiInputLabel-root': { color: '#a1a1aa' },
-                '& fieldset': { borderColor: 'rgba(99, 102, 241, 0.3)' },
-              }}
-            />
+            <FormControl fullWidth required>
+              <InputLabel sx={{ color: '#a1a1aa' }}>Team *</InputLabel>
+              <Select
+                value={selection}
+                onChange={(e) => setSelection(e.target.value)}
+                label="Team *"
+                disabled={!selectedGame || availableTeams.length === 0}
+                sx={{
+                  color: '#ffffff',
+                  '& .MuiOutlinedInput-notchedOutline': { borderColor: 'rgba(99, 102, 241, 0.3)' },
+                  '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: 'rgba(99, 102, 241, 0.5)' },
+                  '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: '#6366f1' },
+                  '&.Mui-disabled': { color: 'rgba(255, 255, 255, 0.5)' },
+                }}
+              >
+                {availableTeams.map((team) => (
+                  <MenuItem key={team} value={team} sx={{ color: '#ffffff' }}>
+                    {team}
+                  </MenuItem>
+                ))}
+              </Select>
+              {!selectedGame && (
+                <Typography variant="caption" sx={{ color: '#a1a1aa', mt: 0.5 }}>
+                  Please select a game first
+                </Typography>
+              )}
+            </FormControl>
             <TextField
               fullWidth
               label="Line *"
