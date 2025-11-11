@@ -31,6 +31,149 @@ import { useToast } from './ToastProvider';
 import { MarketType } from '@/models/Bet';
 import { americanToDecimal, formatOdds, type OddsFormat } from '@/utils/oddsConverter';
 
+// Prop types by sport
+const propTypesBySport: Record<string, string[]> = {
+  // NFL
+  'americanfootball_nfl': [
+    'Passing Yards',
+    'Passing TDs',
+    'Interceptions Thrown',
+    'Rushing Yards',
+    'Rushing Attempts',
+    'Receiving Yards',
+    'Receptions',
+    'Anytime TD Scorer',
+    'Longest Reception',
+    'Longest Rush',
+  ],
+  // NCAA Football
+  'americanfootball_ncaaf': [
+    'Passing Yards',
+    'Passing TDs',
+    'Interceptions Thrown',
+    'Rushing Yards',
+    'Receiving Yards',
+    'Receptions',
+    'Anytime TD Scorer',
+  ],
+  // NBA
+  'basketball_nba': [
+    'Points',
+    'Rebounds',
+    'Assists',
+    'Points + Rebounds + Assists (PRA)',
+    '3-Pointers Made',
+    'Steals',
+    'Blocks',
+    'Turnovers',
+  ],
+  // NCAA Basketball
+  'basketball_ncaab': [
+    'Points',
+    'Rebounds',
+    'Assists',
+    'PRA',
+    '3-Pointers Made',
+    'Steals',
+    'Blocks',
+    'Turnovers',
+  ],
+  // MLB
+  'baseball_mlb': [
+    'Hits',
+    'Home Runs',
+    'RBIs',
+    'Runs',
+    'Total Bases',
+    'Stolen Bases',
+    'Pitcher Strikeouts',
+    'Pitcher Outs Recorded',
+    'Walks Drawn',
+  ],
+  // NHL
+  'icehockey_nhl': [
+    'Goals',
+    'Assists',
+    'Points',
+    'Shots on Goal',
+    'Blocked Shots',
+    'Goalie Saves',
+  ],
+  // Soccer
+  'soccer_usa_mls': [
+    'Goals',
+    'Assists',
+    'Shots',
+    'Shots on Target',
+    'Passes Completed',
+    'Tackles',
+    'Goalkeeper Saves',
+  ],
+  // Tennis
+  'tennis_atp': [
+    'Aces',
+    'Double Faults',
+    'Total Games Won',
+    'Breaks of Serve',
+  ],
+  'tennis_wta': [
+    'Aces',
+    'Double Faults',
+    'Total Games Won',
+    'Breaks of Serve',
+  ],
+  // UFC/MMA
+  'mma_mixed_martial_arts': [
+    'Significant Strikes Landed',
+    'Takedowns Landed',
+    'Control Time (minutes)',
+    'Submission Attempts',
+  ],
+  // Golf
+  'golf_masters_tournament': [
+    'Round Strokes (Over/Under)',
+    'Birdies or Better',
+    'Fairways Hit',
+    'Greens in Regulation',
+  ],
+};
+
+// Helper function to get prop types for a sport
+function getPropTypesForSport(sportKey?: string, sport?: string): string[] {
+  if (sportKey && propTypesBySport[sportKey]) {
+    return propTypesBySport[sportKey];
+  }
+  
+  // Fallback: try to match by sport name
+  if (sport) {
+    const sportLower = sport.toLowerCase();
+    // Try to find matching sport key
+    for (const [key, props] of Object.entries(propTypesBySport)) {
+      if (key.includes(sportLower) || sportLower.includes(key.split('_').pop() || '')) {
+        return props;
+      }
+    }
+    
+    // Direct sport name mapping
+    const sportMap: Record<string, string[]> = {
+      'nfl': propTypesBySport['americanfootball_nfl'] || [],
+      'ncaaf': propTypesBySport['americanfootball_ncaaf'] || [],
+      'nba': propTypesBySport['basketball_nba'] || [],
+      'ncaab': propTypesBySport['basketball_ncaab'] || [],
+      'mlb': propTypesBySport['baseball_mlb'] || [],
+      'nhl': propTypesBySport['icehockey_nhl'] || [],
+      'mls': propTypesBySport['soccer_usa_mls'] || [],
+    };
+    
+    if (sportMap[sportLower]) {
+      return sportMap[sportLower];
+    }
+  }
+  
+  // Default: return all prop types if no match
+  return Object.values(propTypesBySport).flat();
+}
+
 interface Game {
   provider?: string;
   providerEventId?: string;
@@ -127,6 +270,7 @@ export default function CreateBetForm({ open, onClose, onSuccess }: CreateBetFor
     setPlayerName('');
     setSelectedPlayer(null);
     setPlayerResults([]);
+    setStatType(''); // Reset prop type when game changes
     if (game) {
       // Auto-fill form fields from selected game
       // Fields are already in game object
@@ -545,19 +689,42 @@ export default function CreateBetForm({ open, onClose, onSuccess }: CreateBetFor
                 </Box>
               )}
             />
-            <TextField
-              fullWidth
-              label="Stat Type *"
-              value={statType}
-              onChange={(e) => setStatType(e.target.value)}
-              required
-              placeholder="e.g., Points, Rebounds, Assists"
-              sx={{
-                '& .MuiOutlinedInput-root': { color: '#ffffff' },
-                '& .MuiInputLabel-root': { color: '#a1a1aa' },
-                '& fieldset': { borderColor: 'rgba(99, 102, 241, 0.3)' },
-              }}
-            />
+            <FormControl fullWidth required>
+              <InputLabel sx={{ color: '#a1a1aa' }}>Prop Type *</InputLabel>
+              <Select
+                value={statType}
+                onChange={(e) => setStatType(e.target.value)}
+                label="Prop Type *"
+                disabled={!selectedGame}
+                sx={{
+                  color: '#ffffff',
+                  '& .MuiOutlinedInput-notchedOutline': { borderColor: 'rgba(99, 102, 241, 0.3)' },
+                  '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: 'rgba(99, 102, 241, 0.5)' },
+                  '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: '#6366f1' },
+                  '&.Mui-disabled': {
+                    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+                    color: 'rgba(255, 255, 255, 0.5)',
+                  },
+                }}
+              >
+                {selectedGame ? (
+                  getPropTypesForSport(selectedGame.sportKey, selectedGame.sport).map((propType) => (
+                    <MenuItem key={propType} value={propType} sx={{ color: '#ffffff' }}>
+                      {propType}
+                    </MenuItem>
+                  ))
+                ) : (
+                  <MenuItem disabled value="" sx={{ color: '#a1a1aa' }}>
+                    Select a game first
+                  </MenuItem>
+                )}
+              </Select>
+              {!selectedGame && (
+                <Typography variant="caption" sx={{ color: '#a1a1aa', mt: 0.5 }}>
+                  Please select a game first to see available prop types
+                </Typography>
+              )}
+            </FormControl>
             <Box sx={{ display: 'flex', gap: 2, flexDirection: { xs: 'column', sm: 'row' } }}>
               <TextField
                 fullWidth
