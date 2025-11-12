@@ -8,10 +8,14 @@ import {
   createBetSchema, 
   createBetSchemaLegacy,
   updateBetSchema, 
-  settleBetSchema 
 } from '@/utils/validateBet';
 import { z } from 'zod';
 import { updateUserStats } from '@/lib/stats';
+import { 
+  notifyBetCreated, 
+  notifyBetDeleted, 
+  notifyBetUpdated 
+} from '@/lib/betNotifications';
 
 export const runtime = 'nodejs';
 
@@ -275,6 +279,8 @@ export async function POST(request: NextRequest) {
         : {},
     });
 
+    await notifyBetCreated(bet, user);
+
     return NextResponse.json({ bet }, { status: 201 });
   } catch (error) {
     if (error instanceof Error && error.name === 'ZodError') {
@@ -378,6 +384,16 @@ export async function PATCH(request: NextRequest) {
       metadata: updateData,
     });
 
+    const changeSummary: Record<string, unknown> = {};
+    if (validated.book !== undefined) changeSummary.Book = bet.book;
+    if (validated.notes !== undefined) changeSummary.Notes = bet.notes;
+    if (validated.slipImageUrl !== undefined) changeSummary['Slip URL'] = bet.slipImageUrl;
+    if (validated.eventName !== undefined) changeSummary.Event = bet.eventName;
+    if (validated.odds !== undefined) changeSummary.Odds = bet.odds;
+    if (validated.units !== undefined) changeSummary.Units = bet.units;
+
+    await notifyBetUpdated(bet, user, changeSummary);
+
     return NextResponse.json({ bet });
   } catch (error) {
     if (error instanceof Error && error.name === 'ZodError') {
@@ -451,6 +467,8 @@ export async function DELETE(request: NextRequest) {
       action: 'bet_deleted',
       metadata: {},
     });
+
+    await notifyBetDeleted(bet, user);
 
     // Optionally, recalculate stats
     const allBets = await Bet.find({ userId: user._id }).lean();

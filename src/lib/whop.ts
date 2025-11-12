@@ -10,6 +10,16 @@ type WhopSdkShape = {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     overrideOptions?: any
   ) => Promise<{ userId: string; appId: string }>;
+  messages: {
+    sendMessageToChat: (variables: {
+      experienceId: string;
+      message: string;
+      attachments?: Array<{ directUploadId?: string; id?: string }>;
+    }, options?: RequestInit) => Promise<{
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      message?: any;
+    }>;
+  };
   users: {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     getCurrentUser: (variables?: any, options?: RequestInit) => Promise<any>;

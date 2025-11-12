@@ -4,6 +4,7 @@ import { Bet, IBet } from '@/models/Bet';
 import { User } from '@/models/User';
 import { Log } from '@/models/Log';
 import { updateUserStats } from '@/lib/stats';
+import { notifyBetSettled } from '@/lib/betNotifications';
 
 export const runtime = 'nodejs';
 
@@ -521,6 +522,9 @@ export async function POST(request: NextRequest) {
       action: 'bet_auto_settled',
       metadata: { result },
     });
+
+    const userForNotification = user ?? await User.findById(bet.userId);
+    await notifyBetSettled(bet as unknown as IBet, result, userForNotification ?? undefined);
 
     return NextResponse.json({
       bet,
