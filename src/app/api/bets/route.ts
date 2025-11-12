@@ -460,6 +460,9 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
+    // Save bet data before deletion for notification
+    const betData = bet.toObject();
+    
     await bet.deleteOne();
     await Log.create({
       userId: user._id,
@@ -468,7 +471,8 @@ export async function DELETE(request: NextRequest) {
       metadata: {},
     });
 
-    await notifyBetDeleted(bet, user);
+    // Send notification with saved bet data
+    await notifyBetDeleted(betData as unknown as IBet, user);
 
     // Optionally, recalculate stats
     const allBets = await Bet.find({ userId: user._id }).lean();

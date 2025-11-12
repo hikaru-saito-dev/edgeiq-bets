@@ -16,6 +16,7 @@ type WhopSdkShape = {
       message: string;
       attachments?: Array<{ directUploadId?: string; id?: string }>;
     }, options?: RequestInit) => Promise<{
+      _error?: Error;
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       message?: any;
     }>;

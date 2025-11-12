@@ -15,19 +15,42 @@ function getExperienceId(): string | null {
   return experienceId;
 }
 
-async function sendMessage(message: string): Promise<void> {
+async function sendMessage(message: string, companyId?: string): Promise<void> {
   const experienceId = getExperienceId();
-  if (!experienceId) return;
+  if (!experienceId) {
+    console.warn('[betNotifications] Experience ID not configured. Set WHOP_BET_NOTIFICATIONS_EXPERIENCE_ID in env.');
+    return;
+  }
   if (!message.trim()) return;
 
   try {
     const whopSdk = getWhopSdk();
-    await whopSdk.messages.sendMessageToChat({
+    // Use withCompany if companyId is provided, otherwise use base SDK
+    const sdk = companyId ? whopSdk.withCompany(companyId) : whopSdk;
+    
+    const result = await sdk.messages.sendMessageToChat({
       experienceId,
       message,
     });
+    
+    // Check for errors in the response
+    if (result._error) {
+      console.error('[betNotifications] API error:', result._error);
+      return;
+    }
+    
+    console.log('[betNotifications] Message sent successfully');
   } catch (error) {
     console.error('[betNotifications] Failed to send message:', error);
+    // Log more details for debugging
+    if (error instanceof Error) {
+      console.error('[betNotifications] Error details:', {
+        message: error.message,
+        stack: error.stack,
+        experienceId,
+        companyId,
+      });
+    }
   }
 }
 
@@ -120,7 +143,7 @@ export async function notifyBetCreated(bet: IBet, user?: IUser | null): Promise<
     messageLines.push(`Slip: ${bet.slipImageUrl}`);
   }
 
-  await sendMessage(messageLines.join('\n'));
+  await sendMessage(messageLines.join('\n'), bet.companyId);
 }
 
 export async function notifyBetUpdated(bet: IBet, user?: IUser | null, updatedFields?: Record<string, unknown>): Promise<void> {
@@ -143,7 +166,7 @@ export async function notifyBetUpdated(bet: IBet, user?: IUser | null, updatedFi
   lines.push(`Stake: ${formatUnits(bet.units)}`);
   lines.push(`Odds: ${formatOdds(bet)}`);
 
-  await sendMessage(lines.join('\n'));
+  await sendMessage(lines.join('\n'), bet.companyId);
 }
 
 export async function notifyBetDeleted(bet: IBet, user?: IUser | null): Promise<void> {
@@ -156,7 +179,7 @@ export async function notifyBetDeleted(bet: IBet, user?: IUser | null): Promise<
     `Odds: ${formatOdds(bet)}`,
   ].join('\n');
 
-  await sendMessage(message);
+  await sendMessage(message, bet.companyId);
 }
 
 export async function notifyBetSettled(bet: IBet, result: IBet['result'], user?: IUser | null): Promise<void> {
@@ -177,7 +200,7 @@ export async function notifyBetSettled(bet: IBet, result: IBet['result'], user?:
     `Odds: ${formatOdds(bet)}`,
   ].join('\n');
 
-  await sendMessage(message);
+  await sendMessage(message, bet.companyId);
 }
 
 
