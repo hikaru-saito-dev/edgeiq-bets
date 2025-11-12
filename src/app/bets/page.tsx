@@ -45,30 +45,20 @@ export default function BetsPage() {
   const [totalPages, setTotalPages] = useState(1);
   const [search, setSearch] = useState('');
 
-  // Check and settle pending bets
-  const checkAndSettleBets = async () => {
-    try {
-      // Call the auto-settlement endpoint to check and settle all pending bets
-      const response = await fetch('/api/bets/settle-all', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-      });
-      
-      if (response.ok) {
-        const data = await response.json();
-        // If any bets were settled, refresh the list
-        if (data.results && data.results.settled > 0) {
-          // Silently refresh bets - don't show a toast for auto-settlement
-          return true; // Indicate that bets were settled
-        }
-      }
-      return false;
-    } catch (error) {
-      // Silently fail - auto-settlement check shouldn't interrupt user experience
-      console.warn('Auto-settlement check failed:', error);
-      return false;
-    }
-  };
+  useEffect(() => {
+    fetchBets();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [page, pageSize]);
+
+  // Debounced search-as-you-type
+  useEffect(() => {
+    const handle = setTimeout(() => {
+      setPage(1);
+      fetchBets();
+    }, 300);
+    return () => clearTimeout(handle);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [search]);
 
   const fetchBets = async () => {
     try {
@@ -91,46 +81,6 @@ export default function BetsPage() {
     }
   };
 
-  // Check and settle bets on initial page load and when page becomes visible
-  useEffect(() => {
-    const initializePage = async () => {
-      await checkAndSettleBets();
-      await fetchBets();
-    };
-    
-    // Run on mount
-    initializePage();
-    
-    // Also check when page becomes visible (user switches back to tab)
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible') {
-        initializePage();
-      }
-    };
-    
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-    
-    return () => {
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // Fetch bets when page or pageSize changes
-  useEffect(() => {
-    fetchBets();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [page, pageSize]);
-
-  // Debounced search-as-you-type
-  useEffect(() => {
-    const handle = setTimeout(() => {
-      setPage(1);
-      fetchBets();
-    }, 300);
-    return () => clearTimeout(handle);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [search]);
 
   return (
     <Container maxWidth="lg" sx={{ py: 4 }}>
