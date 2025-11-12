@@ -33,8 +33,9 @@ async function getGameScore(providerEventId: string, sportKey: string): Promise<
       return null;
     }
 
-    // Get scores for the sport (last 7 days to catch games that may have finished recently)
-    const url = `https://api.the-odds-api.com/v4/sports/${sportKey}/scores/?daysFrom=7&apiKey=${apiKey}`;
+    // Get scores for the sport (last 30 days to catch games that may have finished recently)
+    // Note: The Odds API scores endpoint typically only returns recent games
+    const url = `https://api.the-odds-api.com/v4/sports/${sportKey}/scores/?daysFrom=10&apiKey=${apiKey}`;
     const response = await fetch(url, {
       next: { revalidate: 60 }, // Cache for 60 seconds
     });
@@ -52,6 +53,8 @@ async function getGameScore(providerEventId: string, sportKey: string): Promise<
     // Find the game by ID
     const game = games.find((g: { id: string }) => g.id === providerEventId);
     if (!game) {
+      // Game not found - might be older than 30 days or not in API results
+      console.warn(`Game not found in API results for providerEventId: ${providerEventId}, sportKey: ${sportKey}`);
       return null;
     }
 
@@ -95,6 +98,16 @@ async function getGameScore(providerEventId: string, sportKey: string): Promise<
       if (!isNaN(parsed)) awayScore = parsed;
     }
 
+    // Validate that we have both scores
+    if (homeScore === undefined || awayScore === undefined) {
+      console.warn(`Incomplete score data for game ${providerEventId}: homeScore=${homeScore}, awayScore=${awayScore}`);
+      return {
+        completed: true,
+        homeScore,
+        awayScore,
+      };
+    }
+    
     return {
       completed: true,
       homeScore,
@@ -110,7 +123,8 @@ async function getGameScore(providerEventId: string, sportKey: string): Promise<
 async function getPlayerStats(
   playerId: number,
   sport: string,
-  gameDate: Date
+  gameDate: Date,
+  providerEventId?: string
 ): Promise<Record<string, number> | null> {
   try {
     const apiKey = process.env.PLAYER_API_KEY;
@@ -152,6 +166,8 @@ async function getPlayerStats(
         } else if (stats && typeof stats === 'object') {
           return stats as Record<string, number>;
         }
+      } else {
+        console.warn(`Failed to fetch NFL player stats: ${response.status} ${response.statusText}`);
       }
     } else {
       // For NBA, MLB, NHL - try PlayerGameStatsByDate endpoint
@@ -176,6 +192,33 @@ async function getPlayerStats(
         }
       } catch (error) {
         console.warn(`Failed to fetch player stats by date for ${sportPath}:`, error);
+      }
+      
+      // Fallback: Try PlayerGameStatsByPlayerID with date (if supported)
+      try {
+        const url = `https://api.sportsdata.io/v3/${sportPath}/stats/json/PlayerGameStatsByPlayerID/${dateStr}/${playerId}?key=${apiKey}`;
+        const response = await fetch(url, {
+          next: { revalidate: 3600 },
+        });
+
+        if (response.ok) {
+          const stats = await response.json();
+          
+          if (Array.isArray(stats)) {
+            const gameStats = stats.find((game: { GameDate?: string; Date?: string }) => {
+              const gameDateStr = game.GameDate || game.Date;
+              return gameDateStr && gameDateStr.startsWith(dateStr);
+            });
+            
+            if (gameStats && typeof gameStats === 'object') {
+              return gameStats as Record<string, number>;
+            }
+          } else if (stats && typeof stats === 'object') {
+            return stats as Record<string, number>;
+          }
+        }
+      } catch (error) {
+        console.warn(`Failed to fetch player stats by player ID for ${sportPath}:`, error);
       }
     }
 
@@ -221,11 +264,43 @@ function mapPropTypeToStatField(statType: string, sport: string): string | null 
     return nbaMap[statType] || null;
   }
   
+  if (sportLower === 'mlb' || sportLower.includes('baseball')) {
+    const mlbMap: Record<string, string> = {
+      'Hits': 'Hits',
+      'Home Runs': 'HomeRuns',
+      'RBIs': 'RunsBattedIn',
+      'Runs': 'Runs',
+      'Total Bases': 'TotalBases',
+      'Stolen Bases': 'StolenBases',
+      'Pitcher Strikeouts': 'PitchingStrikeouts',
+      'Pitcher Outs Recorded': 'PitchingOuts',
+      'Walks Drawn': 'Walks',
+    };
+    return mlbMap[statType] || null;
+  }
+  
+  if (sportLower === 'nhl' || sportLower.includes('hockey')) {
+    const nhlMap: Record<string, string> = {
+      'Goals': 'Goals',
+      'Assists': 'Assists',
+      'Points': 'Points',
+      'Shots on Goal': 'ShotsOnGoal',
+      'Blocked Shots': 'BlockedShots',
+      'Goalie Saves': 'Saves',
+    };
+    return nhlMap[statType] || null;
+  }
+  
   return null;
 }
 
 // Settle a bet based on game results
 async function settleBet(bet: IBet): Promise<'win' | 'loss' | 'push' | 'void' | 'pending'> {
+  // Parlay bets require manual settlement as they involve multiple games/legs
+  if (bet.marketType === 'Parlay') {
+    return 'pending'; // Parlay bets cannot be auto-settled
+  }
+  
   if (!bet.providerEventId || !bet.sport) {
     return 'void';
   }
@@ -244,7 +319,8 @@ async function settleBet(bet: IBet): Promise<'win' | 'loss' | 'push' | 'void' | 
     const playerStats = await getPlayerStats(
       playerId,
       sportPath,
-      new Date(bet.startTime)
+      new Date(bet.startTime),
+      bet.providerEventId
     );
 
     if (!playerStats) {
@@ -253,14 +329,17 @@ async function settleBet(bet: IBet): Promise<'win' | 'loss' | 'push' | 'void' | 
 
     const statField = mapPropTypeToStatField(bet.statType, sportPath);
     if (!statField) {
+      console.warn(`Unknown stat type: ${bet.statType} for sport: ${sportPath}`);
       return 'void';
     }
 
     let statValue: number | undefined;
 
-    if (statField === 'PRA') {
+    if (statField === 'PRA' || statField === 'Points + Rebounds + Assists (PRA)') {
+      // Calculate PRA (Points + Rebounds + Assists)
       statValue = (playerStats.Points || 0) + (playerStats.Rebounds || 0) + (playerStats.Assists || 0);
     } else if (statField === 'Touchdowns' && bet.statType === 'Anytime TD Scorer') {
+      // Anytime TD Scorer: check if player scored any TD
       const rushingTDs = playerStats.RushingTouchdowns || 0;
       const receivingTDs = playerStats.ReceivingTouchdowns || 0;
       const passingTDs = playerStats.PassingTouchdowns || 0;

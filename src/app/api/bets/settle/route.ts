@@ -33,8 +33,9 @@ async function getGameScore(providerEventId: string, sportKey: string): Promise<
       return null;
     }
 
-    // Get scores for the sport (last 7 days to catch games that may have finished recently)
-    const url = `https://api.the-odds-api.com/v4/sports/${sportKey}/scores/?daysFrom=7&apiKey=${apiKey}`;
+    // Get scores for the sport (last 30 days to catch games that may have finished recently)
+    // Note: The Odds API scores endpoint typically only returns recent games
+    const url = `https://api.the-odds-api.com/v4/sports/${sportKey}/scores/?daysFrom=10&apiKey=${apiKey}`;
     const response = await fetch(url, {
       next: { revalidate: 60 }, // Cache for 60 seconds
     });
@@ -52,6 +53,8 @@ async function getGameScore(providerEventId: string, sportKey: string): Promise<
     // Find the game by ID
     const game = games.find((g: { id: string }) => g.id === providerEventId);
     if (!game) {
+      // Game not found - might be older than 30 days or not in API results
+      console.warn(`Game not found in API results for providerEventId: ${providerEventId}, sportKey: ${sportKey}`);
       return null;
     }
 
@@ -95,6 +98,11 @@ async function getGameScore(providerEventId: string, sportKey: string): Promise<
       if (!isNaN(parsed)) awayScore = parsed;
     }
 
+    // Validate that we have both scores (log warning if incomplete)
+    if (homeScore === undefined || awayScore === undefined) {
+      console.warn(`Incomplete score data for game ${providerEventId}: homeScore=${homeScore}, awayScore=${awayScore}`);
+    }
+    
     return {
       completed: true,
       homeScore,
@@ -298,6 +306,11 @@ function mapPropTypeToStatField(statType: string, sport: string): string | null 
 
 // Settle a bet based on game results
 async function settleBet(bet: IBet): Promise<'win' | 'loss' | 'push' | 'void' | 'pending'> {
+  // Parlay bets require manual settlement as they involve multiple games/legs
+  if (bet.marketType === 'Parlay') {
+    return 'pending'; // Parlay bets cannot be auto-settled
+  }
+  
   if (!bet.providerEventId || !bet.sport) {
     return 'void';
   }
