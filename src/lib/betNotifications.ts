@@ -24,22 +24,31 @@ async function sendMessage(message: string, companyId?: string): Promise<void> {
   if (!message.trim()) return;
 
   try {
-    const whopSdk = getWhopSdk();
-    // Use withCompany if companyId is provided, otherwise use base SDK
-    const sdk = companyId ? whopSdk.withCompany(companyId) : whopSdk;
+    // Initialize SDK with companyId directly (like the working backend does)
+    const whopSdk = getWhopSdk(companyId);
     
-    const result = await sdk.messages.sendMessageToChat({
+    const result = await whopSdk.messages.sendMessageToChat({
       experienceId,
       message,
     });
     
     // Check for errors in the response
-    if (result._error) {
+    if (result && typeof result === 'object' && '_error' in result) {
       console.error('[betNotifications] API error:', result._error);
       return;
     }
     
-    console.log('[betNotifications] Message sent successfully');
+    // Success: API returns a string (message ID) or null
+    // Both indicate the message was sent successfully
+    if (typeof result === 'string' || result === null || result === undefined) {
+      if (process.env.NODE_ENV !== 'production') {
+        console.log('[betNotifications] Message sent successfully', result ? `(ID: ${result})` : '');
+      }
+      return;
+    }
+    
+    // Unexpected response format
+    console.warn('[betNotifications] Unexpected response format:', result);
   } catch (error) {
     console.error('[betNotifications] Failed to send message:', error);
     // Log more details for debugging

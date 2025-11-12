@@ -126,20 +126,56 @@ type WhopSdkShape = {
 
 let cachedSdk: WhopSdkShape | null = null;
 
-export function getWhopSdk(): WhopSdkShape {
-  if (cachedSdk) return cachedSdk;
+export function getWhopSdk(companyId?: string): WhopSdkShape {
+  // If companyId is provided, create a new SDK instance with company context
+  // Otherwise, return cached SDK or create a new one
   const apiKey = process.env.WHOP_API_KEY;
   const appId = process.env.NEXT_PUBLIC_WHOP_APP_ID;
+  const agentUserId = process.env.NEXT_PUBLIC_WHOP_AGENT_USER_ID;
+  
   if (!apiKey || !appId) {
     throw new Error('Missing WHOP credentials');
   }
 
-  // WhopServerSdk is a function, not a class
-  const sdk = WhopServerSdk({
-    appId,
-    appApiKey: apiKey
-  }) as unknown as WhopSdkShape;
+  // If companyId is provided, create SDK with company context (don't cache)
+  if (companyId) {
+    const options: {
+      appId: string;
+      appApiKey: string;
+      onBehalfOfUserId?: string;
+      companyId?: string;
+    } = {
+      appId,
+      appApiKey: apiKey,
+    };
+    
+    if (agentUserId) {
+      options.onBehalfOfUserId = agentUserId;
+    }
+    if (companyId) {
+      options.companyId = companyId;
+    }
+    
+    return WhopServerSdk(options) as unknown as WhopSdkShape;
+  }
 
+  // Cache base SDK (without company context)
+  if (cachedSdk) return cachedSdk;
+  
+  const options: {
+    appId: string;
+    appApiKey: string;
+    onBehalfOfUserId?: string;
+  } = {
+    appId,
+    appApiKey: apiKey,
+  };
+  
+  if (agentUserId) {
+    options.onBehalfOfUserId = agentUserId;
+  }
+  
+  const sdk = WhopServerSdk(options) as unknown as WhopSdkShape;
   cachedSdk = sdk;
   return sdk;
 }
