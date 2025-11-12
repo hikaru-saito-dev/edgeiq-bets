@@ -5,61 +5,21 @@ import type { IUser } from '@/models/User';
 const EXPERIENCE_ID_ENV_KEY = 'WHOP_BET_NOTIFICATIONS_EXPERIENCE_ID';
 
 function getExperienceId(): string | null {
-  const experienceId = process.env[EXPERIENCE_ID_ENV_KEY];
-  if (!experienceId) {
-    if (process.env.NODE_ENV !== 'production') {
-      console.warn(`[betNotifications] ${EXPERIENCE_ID_ENV_KEY} not set. Skipping message send.`);
-    }
-    return null;
-  }
-  return experienceId;
+  return process.env[EXPERIENCE_ID_ENV_KEY] || null;
 }
 
 async function sendMessage(message: string, companyId?: string): Promise<void> {
   const experienceId = getExperienceId();
-  if (!experienceId) {
-    console.warn('[betNotifications] Experience ID not configured. Set WHOP_BET_NOTIFICATIONS_EXPERIENCE_ID in env.');
-    return;
-  }
-  if (!message.trim()) return;
+  if (!experienceId || !message.trim() || !companyId) return;
 
   try {
-    // Initialize SDK with companyId directly (like the working backend does)
     const whopSdk = getWhopSdk(companyId);
-    
-    const result = await whopSdk.messages.sendMessageToChat({
+    await whopSdk.messages.sendMessageToChat({
       experienceId,
       message,
     });
-    
-    // Check for errors in the response
-    if (result && typeof result === 'object' && '_error' in result) {
-      console.error('[betNotifications] API error:', result._error);
-      return;
-    }
-    
-    // Success: API returns a string (message ID) or null
-    // Both indicate the message was sent successfully
-    if (typeof result === 'string' || result === null || result === undefined) {
-      if (process.env.NODE_ENV !== 'production') {
-        console.log('[betNotifications] Message sent successfully', result ? `(ID: ${result})` : '');
-      }
-      return;
-    }
-    
-    // Unexpected response format
-    console.warn('[betNotifications] Unexpected response format:', result);
-  } catch (error) {
-    console.error('[betNotifications] Failed to send message:', error);
-    // Log more details for debugging
-    if (error instanceof Error) {
-      console.error('[betNotifications] Error details:', {
-        message: error.message,
-        stack: error.stack,
-        experienceId,
-        companyId,
-      });
-    }
+  } catch {
+    // Silently fail - don't interrupt bet operations
   }
 }
 
@@ -131,7 +91,10 @@ function formatUser(user?: IUser | null): string {
   return user.alias || user.whopDisplayName || user.whopUsername || user.whopUserId || 'Unknown bettor';
 }
 
-export async function notifyBetCreated(bet: IBet, user?: IUser | null): Promise<void> {
+export async function notifyBetCreated(bet: IBet, user?: IUser | null, companyId?: string): Promise<void> {
+  const finalCompanyId = companyId || (user?.companyId as string | undefined) || bet.companyId;
+  if (!finalCompanyId) return;
+
   const messageLines = [
     '🆕 **Bet Created**',
     `User: ${formatUser(user)}`,
@@ -152,10 +115,13 @@ export async function notifyBetCreated(bet: IBet, user?: IUser | null): Promise<
     messageLines.push(`Slip: ${bet.slipImageUrl}`);
   }
 
-  await sendMessage(messageLines.join('\n'), bet.companyId);
+  await sendMessage(messageLines.join('\n'), finalCompanyId);
 }
 
 export async function notifyBetUpdated(bet: IBet, user?: IUser | null, updatedFields?: Record<string, unknown>): Promise<void> {
+  const companyId = bet.companyId || (user?.companyId as string | undefined);
+  if (!companyId) return;
+
   const lines = [
     '✏️ **Bet Updated**',
     `User: ${formatUser(user)}`,
@@ -175,10 +141,13 @@ export async function notifyBetUpdated(bet: IBet, user?: IUser | null, updatedFi
   lines.push(`Stake: ${formatUnits(bet.units)}`);
   lines.push(`Odds: ${formatOdds(bet)}`);
 
-  await sendMessage(lines.join('\n'), bet.companyId);
+  await sendMessage(lines.join('\n'), companyId);
 }
 
 export async function notifyBetDeleted(bet: IBet, user?: IUser | null): Promise<void> {
+  const companyId = bet.companyId || (user?.companyId as string | undefined);
+  if (!companyId) return;
+
   const message = [
     '🗑️ **Bet Deleted**',
     `User: ${formatUser(user)}`,
@@ -188,10 +157,13 @@ export async function notifyBetDeleted(bet: IBet, user?: IUser | null): Promise<
     `Odds: ${formatOdds(bet)}`,
   ].join('\n');
 
-  await sendMessage(message, bet.companyId);
+  await sendMessage(message, companyId);
 }
 
 export async function notifyBetSettled(bet: IBet, result: IBet['result'], user?: IUser | null): Promise<void> {
+  const companyId = bet.companyId || (user?.companyId as string | undefined);
+  if (!companyId) return;
+
   const outcomeEmoji: Record<IBet['result'], string> = {
     win: '✅',
     loss: '❌',
@@ -209,7 +181,7 @@ export async function notifyBetSettled(bet: IBet, result: IBet['result'], user?:
     `Odds: ${formatOdds(bet)}`,
   ].join('\n');
 
-  await sendMessage(message, bet.companyId);
+  await sendMessage(message, companyId);
 }
 
 

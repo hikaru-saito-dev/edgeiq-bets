@@ -203,7 +203,7 @@ export async function POST(request: NextRequest) {
         units: validatedLegacy.units,
         result: 'pending' as const,
         locked,
-        companyId: companyId || undefined,
+        companyId: companyId || user.companyId,
         eventName: validatedLegacy.eventName,
         odds: validatedLegacy.odds,
         oddsFormat: 'decimal' as const,
@@ -220,7 +220,7 @@ export async function POST(request: NextRequest) {
         units: validatedNew.units,
         result: 'pending' as const,
         locked,
-        companyId: companyId || undefined,
+        companyId: companyId || user.companyId,
         eventName: validatedNew.eventName,
         sport: validatedNew.game.sport,
         sportKey: validatedNew.game.sportKey, // Store sportKey for auto-settlement
@@ -279,7 +279,7 @@ export async function POST(request: NextRequest) {
         : {},
     });
 
-    await notifyBetCreated(bet, user);
+    await notifyBetCreated(bet, user, companyId || user.companyId);
 
     return NextResponse.json({ bet }, { status: 201 });
   } catch (error) {
