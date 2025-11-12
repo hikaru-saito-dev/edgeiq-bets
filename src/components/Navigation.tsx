@@ -44,7 +44,7 @@ export default function Navigation() {
           >
             Bets
           </Button>
-          {/* <Button 
+          <Button 
             component={Link} 
             href="/leaderboard"
             sx={{
@@ -57,7 +57,7 @@ export default function Navigation() {
             }}
           >
             Leaderboard
-          </Button> */}
+          </Button>
           <Button 
             component={Link} 
             href="/profile"
