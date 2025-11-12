@@ -36,7 +36,7 @@ interface Team {
 async function getTeamKey(teamName: string, sport: string, apiKey: string): Promise<string | null> {
   try {
     const sportPath = sport.toLowerCase();
-    const teamsUrl = `https://api.sportsdata.io/v3/${sportPath}/scores/json/TeamsBasic?key=${apiKey}`;
+    const teamsUrl = `https://api.sportsdata.io/v3/${sportPath}/scores/json/AllTeams?key=${apiKey}`;
     const res = await fetch(teamsUrl, {
       next: { revalidate: 3600 }, // Cache for 1 hour
     });

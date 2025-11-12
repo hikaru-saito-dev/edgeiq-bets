@@ -43,7 +43,6 @@ interface BetCardProps {
 export default function BetCard({ bet, onUpdate }: BetCardProps) {
   const toast = useToast();
   const [editOpen, setEditOpen] = useState(false);
-  const [settleOpen, setSettleOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
     eventName: bet.eventName,
@@ -51,7 +50,6 @@ export default function BetCard({ bet, onUpdate }: BetCardProps) {
     odds: bet.odds,
     units: bet.units,
   });
-  const [settleResult, setSettleResult] = useState<'win' | 'loss' | 'push' | 'void'>('win');
 
   const getResultColor = () => {
     switch (bet.result) {
@@ -101,34 +99,6 @@ export default function BetCard({ bet, onUpdate }: BetCardProps) {
     }
   };
 
-  const handleSettle = async () => {
-    setLoading(true);
-    try {
-      const response = await fetch('/api/bets?action=settle', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          betId: bet._id,
-          result: settleResult,
-        }),
-      });
-
-      if (!response.ok) {
-        const error = await response.json().catch(() => ({ error: 'Failed to settle bet' }));
-        toast.showError(error.error || 'Failed to settle bet');
-        return;
-      }
-
-      setSettleOpen(false);
-      toast.showSuccess(`Bet marked as ${settleResult}!`);
-      onUpdate?.();
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to settle bet';
-      toast.showError(message);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   // Calculate potential payout using utility function
   const potentialPayout = Math.round(bet.units * (bet.odds - 1) * 100) / 100;
@@ -267,24 +237,7 @@ export default function BetCard({ bet, onUpdate }: BetCardProps) {
                 Edit
               </Button>
             )}
-            {bet.result === 'pending' && (() => {
-              const now = new Date();
-              const startTime = new Date(bet.startTime);
-              const canSettle = now >= startTime;
-              
-              return (
-                <Button
-                  variant="contained"
-                  size="small"
-                  onClick={() => setSettleOpen(true)}
-                  color="primary"
-                  disabled={!canSettle}
-                  title={!canSettle ? 'Cannot settle bet before event start time' : ''}
-                >
-                  Settle Bet
-                </Button>
-              );
-            })()}
+            {/* Manual settlement disabled - bets are auto-settled */}
             {/* Delete button, only for bets that are not locked, not settled, and before start time */}
             {bet.result === 'pending' && (() => {
               const now = new Date();
@@ -393,42 +346,6 @@ export default function BetCard({ bet, onUpdate }: BetCardProps) {
         </DialogActions>
       </Dialog>
 
-      {/* Settle Dialog */}
-      <Dialog open={settleOpen} onClose={() => setSettleOpen(false)}>
-        <DialogTitle>Settle Bet</DialogTitle>
-        <DialogContent>
-          <TextField
-            fullWidth
-            select
-            label="Result"
-            value={settleResult}
-            onChange={(e) => setSettleResult(e.target.value as 'win' | 'loss' | 'push' | 'void')}
-            margin="normal"
-          >
-            <MenuItem value="win">Win</MenuItem>
-            <MenuItem value="loss">Loss</MenuItem>
-            <MenuItem value="push">Push</MenuItem>
-            <MenuItem value="void">Void</MenuItem>
-          </TextField>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setSettleOpen(false)}>Cancel</Button>
-          <Button 
-            onClick={handleSettle} 
-            variant="contained" 
-            disabled={loading}
-            startIcon={loading ? <CircularProgress size={16} sx={{ color: 'white' }} /> : null}
-            sx={{
-              background: loading ? 'rgba(99, 102, 241, 0.5)' : 'linear-gradient(135deg, #6366f1 0%, #ec4899 100%)',
-              '&:hover': {
-                background: loading ? 'rgba(99, 102, 241, 0.5)' : 'linear-gradient(135deg, #4f46e5 0%, #db2777 100%)',
-              },
-            }}
-          >
-            {loading ? 'Settling...' : 'Settle'}
-          </Button>
-        </DialogActions>
-      </Dialog>
     </>
   );
 }

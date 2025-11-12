@@ -421,6 +421,7 @@ export default function CreateBetForm({ open, onClose, onSuccess }: CreateBetFor
           provider: gameData.provider,
           providerEventId: gameData.providerEventId,
           sport: gameData.sport,
+          sportKey: gameData.sportKey, // Include sportKey for auto-settlement
           league: gameData.league,
           homeTeam: gameData.homeTeam,
           awayTeam: gameData.awayTeam,
@@ -433,7 +434,13 @@ export default function CreateBetForm({ open, onClose, onSuccess }: CreateBetFor
           ...(marketType === 'ML' && { selection }),
           ...(marketType === 'Spread' && { selection, line }),
           ...(marketType === 'Total' && { line, overUnder }),
-          ...(marketType === 'Player Prop' && { playerName, statType, line, overUnder }),
+          ...(marketType === 'Player Prop' && { 
+            playerName, 
+            playerId: selectedPlayer?.id, // Store player ID for auto-settlement
+            statType, 
+            line, 
+            overUnder 
+          }),
           ...(marketType === 'Parlay' && { parlaySummary }),
         },
         odds: {

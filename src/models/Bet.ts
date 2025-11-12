@@ -21,6 +21,7 @@ export interface IBet extends Document {
   // Provider Information (for auto-settlement)
   provider?: string; // e.g., "Sportradar", "SportsDataIO", "TheOddsAPI"
   providerEventId?: string; // Provider's unique event ID
+  sportKey?: string; // The Odds API sport_key (e.g., "americanfootball_nfl", "basketball_nba")
   
   // Market & Selection
   marketType: MarketType;
@@ -28,6 +29,7 @@ export interface IBet extends Document {
   line?: number; // For Spread, Total, Player Prop
   overUnder?: 'Over' | 'Under'; // For Total and Player Prop
   playerName?: string; // For Player Prop
+  playerId?: number; // SportsData.io Player ID for Player Prop
   statType?: string; // For Player Prop (e.g., "Points", "Rebounds")
   parlaySummary?: string; // For Parlay bets
   
@@ -70,6 +72,7 @@ const BetSchema = new Schema<IBet>({
   // Provider Information
   provider: { type: String, trim: true },
   providerEventId: { type: String, trim: true, index: true },
+  sportKey: { type: String, trim: true }, // The Odds API sport_key
   
   // Market & Selection
   marketType: { 
@@ -82,6 +85,7 @@ const BetSchema = new Schema<IBet>({
   line: { type: Number },
   overUnder: { type: String, enum: ['Over', 'Under'] },
   playerName: { type: String, trim: true },
+  playerId: { type: Number }, // SportsData.io Player ID
   statType: { type: String, trim: true },
   parlaySummary: { type: String, trim: true },
   

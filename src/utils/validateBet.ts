@@ -9,6 +9,7 @@ export const gameSelectionSchema = z.object({
   provider: z.string().optional(),
   providerEventId: z.string().optional(),
   sport: z.string().optional(),
+  sportKey: z.string().optional(), // The Odds API sport_key
   league: z.string().optional(),
   homeTeam: z.string().optional(),
   awayTeam: z.string().optional(),
@@ -54,6 +55,7 @@ const totalMarketSchema = baseMarketSchema.extend({
 const playerPropMarketSchema = baseMarketSchema.extend({
   marketType: z.literal('Player Prop'),
   playerName: z.string().min(1, 'Player name is required'),
+  playerId: z.number().optional(), // SportsData.io Player ID for auto-settlement
   statType: z.string().min(1, 'Stat type is required'),
   line: z.number(),
   overUnder: z.enum(['Over', 'Under']),

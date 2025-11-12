@@ -219,6 +219,7 @@ export async function POST(request: NextRequest) {
         companyId: companyId || undefined,
         eventName: validatedNew.eventName,
         sport: validatedNew.game.sport,
+        sportKey: validatedNew.game.sportKey, // Store sportKey for auto-settlement
         league: validatedNew.game.league,
         homeTeam: validatedNew.game.homeTeam,
         awayTeam: validatedNew.game.awayTeam,
@@ -238,6 +239,7 @@ export async function POST(request: NextRequest) {
         }),
         ...(validatedNew.market.marketType === 'Player Prop' && { 
           playerName: validatedNew.market.playerName,
+          playerId: (validatedNew.market as { playerId?: number }).playerId,
           statType: validatedNew.market.statType,
           line: validatedNew.market.line,
           overUnder: validatedNew.market.overUnder,
@@ -394,89 +396,13 @@ export async function PATCH(request: NextRequest) {
 
 /**
  * PUT /api/bets?action=settle
- * Settle a bet (mark as win/loss/push/void)
+ * Manual settlement is disabled - bets are auto-settled based on game results
  */
 export async function PUT(request: NextRequest) {
-  try {
-    await connectDB();
-    const headers = await import('next/headers').then(m => m.headers());
-    const authInfo = await verifyWhopUser(headers);
-    
-    if (!authInfo) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const { userId, companyId } = authInfo;
-
-    const { searchParams } = new URL(request.url);
-    const action = searchParams.get('action');
-
-    if (action !== 'settle') {
-      return NextResponse.json({ error: 'Invalid action' }, { status: 400 });
-    }
-
-    const body = await request.json();
-    const { betId, result } = body;
-
-    if (!betId) {
-      return NextResponse.json({ error: 'betId is required' }, { status: 400 });
-    }
-
-    const validated = settleBetSchema.parse({ result });
-
-    // Find user
-    const user = await User.findOne({ whopUserId: userId, companyId: companyId || 'default' });
-    if (!user) {
-      return NextResponse.json({ error: 'User not found' }, { status: 404 });
-    }
-
-    // Find bet
-    const bet = await Bet.findOne({ _id: betId, userId: user._id });
-    if (!bet) {
-      return NextResponse.json({ error: 'Bet not found' }, { status: 404 });
-    }
-
-    // Validation: Cannot settle a bet before the event has started
-    const now = new Date();
-    const startTime = new Date(bet.startTime);
-    
-    if (now < startTime) {
-      return NextResponse.json(
-        { error: 'Cannot settle bet before event start time. The event must begin before you can mark the result.' },
-        { status: 400 }
-      );
-    }
-
-    // Update bet result
-    bet.result = validated.result;
-    await bet.save();
-
-    // Recalculate user stats
-    const allBets = await Bet.find({ userId: user._id }).lean();
-    await updateUserStats(user._id.toString(), allBets as unknown as IBet[]);
-
-    // Log the action
-    await Log.create({
-      userId: user._id,
-      betId: bet._id,
-      action: 'bet_settled',
-      metadata: { result: validated.result },
-    });
-
-    return NextResponse.json({ bet });
-  } catch (error) {
-    if (error instanceof Error && error.name === 'ZodError') {
-      return NextResponse.json(
-        { error: 'Validation error', details: error },
-        { status: 400 }
-      );
-    }
-    console.error('Error settling bet:', error);
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    );
-  }
+  return NextResponse.json(
+    { error: 'Manual settlement is disabled. Bets are automatically settled based on game results.' },
+    { status: 403 }
+  );
 }
 
 /**
