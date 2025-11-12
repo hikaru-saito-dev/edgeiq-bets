@@ -33,9 +33,9 @@ async function getGameScore(providerEventId: string, sportKey: string): Promise<
       return null;
     }
 
-    // Get scores for the sport (last 30 days to catch games that may have finished recently)
-    // Note: The Odds API scores endpoint typically only returns recent games
-    const url = `https://api.the-odds-api.com/v4/sports/${sportKey}/scores/?daysFrom=10&apiKey=${apiKey}`;
+    // Get scores for the sport (up to 3 days back - API limit)
+    // Note: The Odds API rejects higher values with INVALID_SCORES_DAYS_FROM
+    const url = `https://api.the-odds-api.com/v4/sports/${sportKey}/scores/?daysFrom=3&apiKey=${apiKey}`;
     const response = await fetch(url, {
       next: { revalidate: 60 }, // Cache for 60 seconds
     });
