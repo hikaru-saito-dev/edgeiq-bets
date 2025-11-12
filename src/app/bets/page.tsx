@@ -59,6 +59,16 @@ export default function BetsPage() {
     return () => clearTimeout(handle);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [search]);
+  useEffect(() => {
+    const fetchSettle = async () => {
+    const response = await fetch('/api/bets/settle');
+    if (!response.ok) throw new Error('Failed to settle bets');
+    const data = await response.json();
+    console.log(data);
+  };
+  fetchSettle();
+  fetchBets();
+  }, []);
 
   const fetchBets = async () => {
     try {
