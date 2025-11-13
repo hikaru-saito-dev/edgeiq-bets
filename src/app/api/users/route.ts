@@ -95,7 +95,8 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { userId: currentUserId, companyId } = authInfo;
+    const { userId: currentUserId, companyId: companyIdFromAuth } = authInfo;
+    const companyId = companyIdFromAuth || process.env.NEXT_PUBLIC_WHOP_COMPANY_ID;
     if (!companyId) {
       return NextResponse.json({ error: 'Company ID not found' }, { status: 400 });
     }
