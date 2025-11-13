@@ -54,6 +54,17 @@ type WhopSdkShape = {
         [key: string]: any;
       } | null;
     }>;
+    listAuthorizedUsers: (variables: {
+      companyId: string;
+    }, options?: RequestInit) => Promise<{
+      _error?: Error;
+      company?: {
+        authorizedUsers?: Array<{
+          role?: string | null;
+          userId?: string | null;
+        } | null> | null;
+      } | null;
+    }>;
     listPlans: (variables: {
       companyId: string;
       first?: number;
@@ -434,13 +445,14 @@ export async function getWhopCompanyData(companyId: string): Promise<{
 export async function userHasCompanyAccess({ userId, companyId }: { userId: string; companyId: string }): Promise<'owner' | 'admin' | 'member' | 'none'> {
   try {
     const whopSdk = getWhopSdk(companyId);
-    const response = await whopSdk.companies.listMembers({ companyId, first: 100 });
-    const members = response.company?.members?.nodes ?? [];
-    const match = members.find((member) => member?.user?.id === userId);
-    if (!match) return 'none';
+    const response = await whopSdk.companies.listAuthorizedUsers({ companyId });
+    const authorizedUsers = response.company?.authorizedUsers ?? [];
+    const match = authorizedUsers.find((member) => member?.userId === userId);
+    if (!match?.role) return 'none';
 
-    if (match.role === 'owner') return 'owner';
-    if (match.role === 'admin') return 'admin';
+    const role = match.role.toLowerCase() as 'owner' | 'admin' | 'manager' | 'moderator' | 'support' | 'app_manager' | 'sales_manager';
+    if (role === 'owner') return 'owner';
+    if (role === 'admin') return 'admin';
     return 'member';
   } catch (error) {
     console.error('Error checking company access:', error);
