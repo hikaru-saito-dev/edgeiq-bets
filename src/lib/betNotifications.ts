@@ -130,8 +130,27 @@ function getMarketLabel(bet: IBet): string {
       return bet.playerName && bet.statType
         ? `Player Prop – ${bet.playerName} ${bet.statType}${bet.line !== undefined ? ` ${bet.overUnder ?? ''} ${bet.line}` : ''}`
         : 'Player Prop';
-    case 'Parlay':
-      return bet.parlaySummary ? `Parlay – ${bet.parlaySummary}` : 'Parlay';
+    case 'Parlay': {
+      const summaryUnknown = bet.parlaySummary as unknown;
+      if (typeof summaryUnknown === 'string' && summaryUnknown.trim()) {
+        return `Parlay – ${summaryUnknown}`;
+      }
+      if (Array.isArray(summaryUnknown)) {
+        const joined = summaryUnknown
+          .map((item) => (typeof item === 'string' ? item : typeof item === 'object' && item ? Object.values(item).join(' ') : String(item)))
+          .filter((item) => Boolean(item))
+          .join(' + ');
+        if (joined) return `Parlay – ${joined}`;
+      }
+      if (summaryUnknown && typeof summaryUnknown === 'object') {
+        const joined = Object.values(summaryUnknown as Record<string, unknown>)
+          .map((item) => (typeof item === 'string' ? item : String(item)))
+          .filter((item) => Boolean(item))
+          .join(' + ');
+        if (joined) return `Parlay – ${joined}`;
+      }
+      return 'Parlay';
+    }
     default:
       return bet.marketType;
   }

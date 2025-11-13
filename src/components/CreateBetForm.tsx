@@ -438,8 +438,11 @@ export default function CreateBetForm({ open, onClose, onSuccess }: CreateBetFor
       };
 
       // Build market object
+      const parlaySummaryText = isParlay
+        ? parlayLegs.map((leg) => leg.label).filter(Boolean).join(' + ')
+        : '';
       const market: Record<string, unknown> = isParlay
-        ? { marketType: 'Parlay', parlaySummary: parlayLegs.join(' + ') }
+        ? { marketType: 'Parlay', parlaySummary: parlaySummaryText }
         : { marketType };
 
       if (!isParlay) {
