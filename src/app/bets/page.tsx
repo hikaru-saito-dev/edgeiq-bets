@@ -31,6 +31,22 @@ interface Bet {
   result: 'pending' | 'win' | 'loss' | 'push' | 'void';
   locked: boolean;
   createdAt: string;
+  marketType: 'ML' | 'Spread' | 'Total' | 'Player Prop' | 'Parlay';
+  parlaySummary?: string;
+  parlayLegs?: Array<{
+    _id: string;
+    eventName: string;
+    startTime: string;
+    marketType: 'ML' | 'Spread' | 'Total' | 'Player Prop';
+    selection?: string;
+    line?: number;
+    overUnder?: 'Over' | 'Under';
+    playerName?: string;
+    statType?: string;
+    odds: number;
+    units: number;
+    result: 'pending' | 'win' | 'loss' | 'push' | 'void';
+  }>;
 }
 
 export default function BetsPage() {

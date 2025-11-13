@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import {
   Card,
   CardContent,
@@ -13,8 +13,8 @@ import {
   DialogActions,
   Button,
   TextField,
-  MenuItem,
   CircularProgress,
+  Collapse,
 } from '@mui/material';
 import EditIcon from '@mui/icons-material/Edit';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
@@ -24,6 +24,8 @@ import AttachMoneyIcon from '@mui/icons-material/AttachMoney';
 import TrendingUpIcon from '@mui/icons-material/TrendingUp';
 import EventIcon from '@mui/icons-material/Event';
 import CalculateIcon from '@mui/icons-material/Calculate';
+import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
+import ExpandLessIcon from '@mui/icons-material/ExpandLess';
 import { useToast } from './ToastProvider';
 
 interface BetCardProps {
@@ -36,6 +38,22 @@ interface BetCardProps {
     result: 'pending' | 'win' | 'loss' | 'push' | 'void';
     locked: boolean;
     createdAt: string;
+    marketType: 'ML' | 'Spread' | 'Total' | 'Player Prop' | 'Parlay';
+    parlaySummary?: string;
+    parlayLegs?: Array<{
+      _id: string;
+      eventName: string;
+      startTime: string;
+      marketType: 'ML' | 'Spread' | 'Total' | 'Player Prop';
+      selection?: string;
+      line?: number;
+      overUnder?: 'Over' | 'Under';
+      playerName?: string;
+      statType?: string;
+      odds: number;
+      units: number;
+      result: 'pending' | 'win' | 'loss' | 'push' | 'void';
+    }>;
   };
   onUpdate?: () => void;
 }
@@ -44,6 +62,7 @@ export default function BetCard({ bet, onUpdate }: BetCardProps) {
   const toast = useToast();
   const [editOpen, setEditOpen] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [showParlayLegs, setShowParlayLegs] = useState(false);
   const [formData, setFormData] = useState({
     eventName: bet.eventName,
     startTime: new Date(bet.startTime).toISOString().slice(0, 16),
@@ -103,6 +122,29 @@ export default function BetCard({ bet, onUpdate }: BetCardProps) {
   // Calculate potential payout using utility function
   const potentialPayout = Math.round(bet.units * (bet.odds - 1) * 100) / 100;
   const totalReturn = Math.round(bet.units * bet.odds * 100) / 100;
+  const parlayLegCount = bet.marketType === 'Parlay' ? bet.parlayLegs?.length ?? 0 : 0;
+
+  const parlayLegsSorted = useMemo(() => {
+    if (bet.marketType !== 'Parlay' || !bet.parlayLegs) return [];
+    return [...bet.parlayLegs].sort(
+      (a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime()
+    );
+  }, [bet.marketType, bet.parlayLegs]);
+
+  const renderLegDescription = (leg: NonNullable<typeof bet.parlayLegs>[number]) => {
+    switch (leg.marketType) {
+      case 'ML':
+        return `${leg.selection ?? 'Team'} ML`;
+      case 'Spread':
+        return `${leg.selection ?? 'Team'} ${leg.line && leg.line > 0 ? '+' : ''}${leg.line}`;
+      case 'Total':
+        return `${leg.overUnder ?? ''} ${leg.line ?? ''}`.trim();
+      case 'Player Prop':
+        return `${leg.playerName ?? 'Player'} ${leg.statType ?? ''} ${leg.overUnder ?? ''} ${leg.line ?? ''}`.trim();
+      default:
+        return leg.marketType;
+    }
+  };
 
   return (
     <>
@@ -224,6 +266,78 @@ export default function BetCard({ bet, onUpdate }: BetCardProps) {
               </Typography>
             </Box>
           </Box>
+
+          {bet.marketType === 'Parlay' && (
+            <Box sx={{ mb: 2 }}>
+              <Box display="flex" alignItems="center" justifyContent="space-between" sx={{ mb: 1 }}>
+                <Typography variant="subtitle1" sx={{ color: '#fbbf24', fontWeight: 600 }}>
+                  Parlay · {parlayLegCount} {parlayLegCount === 1 ? 'Leg' : 'Legs'}
+                </Typography>
+                <Button
+                  size="small"
+                  variant="text"
+                  endIcon={showParlayLegs ? <ExpandLessIcon /> : <ExpandMoreIcon />}
+                  onClick={() => setShowParlayLegs((prev) => !prev)}
+                  sx={{ color: '#a1a1aa', textTransform: 'none' }}
+                >
+                  {showParlayLegs ? 'Hide Legs' : 'View Legs'}
+                </Button>
+              </Box>
+              {bet.parlaySummary && (
+                <Typography variant="body2" sx={{ color: '#a1a1aa', mb: 1 }}>
+                  {bet.parlaySummary}
+                </Typography>
+              )}
+              <Collapse in={showParlayLegs}>
+                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                  {parlayLegsSorted.length === 0 && (
+                    <Typography variant="body2" sx={{ color: '#a1a1aa' }}>
+                      Legs will appear once data loads.
+                    </Typography>
+                  )}
+                  {parlayLegsSorted.map((leg) => (
+                    <Box
+                      key={leg._id}
+                      sx={{
+                        p: 1.5,
+                        borderRadius: 2,
+                        border: '1px solid rgba(99, 102, 241, 0.3)',
+                        background: 'linear-gradient(135deg, rgba(15, 15, 35, 0.6), rgba(30, 30, 60, 0.6))',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: 0.5,
+                      }}
+                    >
+                      <Typography variant="subtitle2" sx={{ color: '#ffffff', fontWeight: 600 }}>
+                        {leg.eventName}
+                      </Typography>
+                      <Typography variant="caption" sx={{ color: '#a1a1aa' }}>
+                        {new Date(leg.startTime).toLocaleString()} · {renderLegDescription(leg)}
+                      </Typography>
+                      <Box display="flex" gap={2} flexWrap="wrap">
+                        <Chip
+                          size="small"
+                          label={`Odds ${leg.odds.toFixed(2)}`}
+                          sx={{ bgcolor: 'rgba(99, 102, 241, 0.2)', color: '#ffffff' }}
+                        />
+                        <Chip
+                          size="small"
+                          label={`Units ${leg.units.toFixed(2)}`}
+                          sx={{ bgcolor: 'rgba(34, 197, 94, 0.2)', color: '#ffffff' }}
+                        />
+                        <Chip
+                          size="small"
+                          label={leg.result.toUpperCase()}
+                          color={leg.result === 'pending' ? 'info' : leg.result === 'win' ? 'success' : leg.result === 'loss' ? 'error' : 'warning'}
+                          sx={{ fontWeight: 600 }}
+                        />
+                      </Box>
+                    </Box>
+                  ))}
+                </Box>
+              </Collapse>
+            </Box>
+          )}
 
           <Box display="flex" gap={1} justifyContent="flex-end">
             {!bet.locked && (

@@ -145,7 +145,7 @@ function getPropTypesForSport(sportKey?: string, sport?: string): string[] {
   if (sportKey && propTypesBySport[sportKey]) {
     return propTypesBySport[sportKey];
   }
-  
+
   // Fallback: try to match by sport name
   if (sport) {
     const sportLower = sport.toLowerCase();
@@ -155,7 +155,7 @@ function getPropTypesForSport(sportKey?: string, sport?: string): string[] {
         return props;
       }
     }
-    
+
     // Direct sport name mapping
     const sportMap: Record<string, string[]> = {
       'nfl': propTypesBySport['americanfootball_nfl'] || [],
@@ -166,12 +166,12 @@ function getPropTypesForSport(sportKey?: string, sport?: string): string[] {
       'nhl': propTypesBySport['icehockey_nhl'] || [],
       'mls': propTypesBySport['soccer_usa_mls'] || [],
     };
-    
+
     if (sportMap[sportLower]) {
       return sportMap[sportLower];
     }
   }
-  
+
   // Default: return all prop types if no match
   return Object.values(propTypesBySport).flat();
 }
@@ -219,13 +219,13 @@ export default function CreateBetForm({ open, onClose, onSuccess }: CreateBetFor
   const [gameResults, setGameResults] = useState<Game[]>([]);
   const [selectedGame, setSelectedGame] = useState<Game | null>(null);
   const [showAdvanced, setShowAdvanced] = useState(false);
-  
+
   // Player search state
   const [searchingPlayers, setSearchingPlayers] = useState(false);
   const [playerSearchQuery, setPlayerSearchQuery] = useState('');
   const [playerResults, setPlayerResults] = useState<Player[]>([]);
   const [selectedPlayer, setSelectedPlayer] = useState<Player | null>(null);
-  
+
   // Form state
   const [marketType, setMarketType] = useState<MarketType>('ML');
   const [selection, setSelection] = useState('');
@@ -249,11 +249,11 @@ export default function CreateBetForm({ open, onClose, onSuccess }: CreateBetFor
     };
   };
   const [parlayLegs, setParlayLegs] = useState<ParlayLegLocal[]>([]);
-  
+
   const [oddsFormat, setOddsFormat] = useState<OddsFormat>('american');
   const [oddsValue, setOddsValue] = useState<number | ''>('');
   const [units, setUnits] = useState<number | ''>('');
-  
+
   const [book, setBook] = useState('');
   const [notes, setNotes] = useState('');
   const [slipImageUrl, setSlipImageUrl] = useState('');
@@ -264,7 +264,7 @@ export default function CreateBetForm({ open, onClose, onSuccess }: CreateBetFor
       setGameResults([]);
       return;
     }
-    
+
     setSearchingGames(true);
     try {
       const response = await fetch(`/api/games/search?q=${encodeURIComponent(query)}`);
@@ -300,11 +300,11 @@ export default function CreateBetForm({ open, onClose, onSuccess }: CreateBetFor
       setPlayerResults([]);
       return;
     }
-    
+
     setSearchingPlayers(true);
     try {
       const params = new URLSearchParams({ q: query });
-      
+
       // If a game is selected, try to filter by teams
       if (selectedGame) {
         // Include both teams in search (comma-separated)
@@ -330,7 +330,7 @@ export default function CreateBetForm({ open, onClose, onSuccess }: CreateBetFor
           params.append('sport', sportKey);
         }
       }
-      
+
       const response = await fetch(`/api/players/search?${params.toString()}`);
       if (!response.ok) throw new Error('Failed to search players');
       const data = await response.json();
@@ -368,10 +368,10 @@ export default function CreateBetForm({ open, onClose, onSuccess }: CreateBetFor
       return null;
     }
 
-    const decimalOdds = oddsFormat === 'decimal' 
-      ? oddsValue 
+    const decimalOdds = oddsFormat === 'decimal'
+      ? oddsValue
       : americanToDecimal(oddsValue);
-    
+
     const profit = units * (decimalOdds - 1);
     const totalReturn = units * decimalOdds;
 
@@ -447,8 +447,8 @@ export default function CreateBetForm({ open, onClose, onSuccess }: CreateBetFor
         if (marketType === 'Spread') Object.assign(market, { selection, line });
         if (marketType === 'Total') Object.assign(market, { line, overUnder });
         if (marketType === 'Player Prop') {
-          Object.assign(market, { 
-            playerName, 
+          Object.assign(market, {
+            playerName,
             playerId: selectedPlayer?.id,
             statType,
             line,
@@ -576,7 +576,7 @@ export default function CreateBetForm({ open, onClose, onSuccess }: CreateBetFor
             )}
           </FormControl>
         );
-      
+
       case 'Spread':
         return (
           <Box sx={{ display: 'flex', gap: 2, flexDirection: { xs: 'column', sm: 'row' } }}>
@@ -623,7 +623,7 @@ export default function CreateBetForm({ open, onClose, onSuccess }: CreateBetFor
             />
           </Box>
         );
-      
+
       case 'Total':
         return (
           <Box sx={{ display: 'flex', gap: 2, flexDirection: { xs: 'column', sm: 'row' } }}>
@@ -660,7 +660,7 @@ export default function CreateBetForm({ open, onClose, onSuccess }: CreateBetFor
             </FormControl>
           </Box>
         );
-      
+
       case 'Player Prop':
         return (
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
@@ -802,7 +802,7 @@ export default function CreateBetForm({ open, onClose, onSuccess }: CreateBetFor
             </Box>
           </Box>
         );
-      
+
       default:
         return null;
     }
@@ -867,13 +867,13 @@ export default function CreateBetForm({ open, onClose, onSuccess }: CreateBetFor
   };
 
   return (
-    <Dialog 
-      open={open} 
-      onClose={onClose} 
-      maxWidth="md" 
+    <Dialog
+      open={open}
+      onClose={onClose}
+      maxWidth="md"
       fullWidth
       PaperProps={{
-        sx: { 
+        sx: {
           borderRadius: 2,
           background: 'linear-gradient(135deg, rgba(15, 15, 35, 0.95), rgba(30, 30, 60, 0.9))',
           backdropFilter: 'blur(20px)',
@@ -881,7 +881,7 @@ export default function CreateBetForm({ open, onClose, onSuccess }: CreateBetFor
         }
       }}
     >
-      <DialogTitle sx={{ 
+      <DialogTitle sx={{
         background: 'linear-gradient(135deg, rgba(15, 15, 35, 0.9), rgba(30, 30, 60, 0.8))',
         borderBottom: '1px solid rgba(99, 102, 241, 0.3)',
       }}>
@@ -892,8 +892,38 @@ export default function CreateBetForm({ open, onClose, onSuccess }: CreateBetFor
           </Typography>
         </Box>
       </DialogTitle>
-      
-      <DialogContent sx={{ 
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 1 }}>
+        <FormControlLabel
+          control={
+            <Switch
+              checked={isParlay}
+              onChange={(_, checked) => {
+                setIsParlay(checked);
+                if (!checked) {
+                  setParlayLegs([]);
+                  setParlaySummary('');
+                }
+              }}
+              sx={{
+                '& .MuiSwitch-switchBase.Mui-checked': { color: '#6366f1' },
+                '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': { backgroundColor: '#6366f1' },
+                '& .MuiSwitch-track': { backgroundColor: 'rgba(99, 102, 241, 0.3)' },
+              }}
+            />
+          }
+          label={
+            <Typography sx={{ color: '#ffffff' }}>
+              Parlay
+            </Typography>
+          }
+        />
+        {isParlay && (
+          <Typography variant="body2" sx={{ color: '#a1a1aa' }}>
+            Add multiple legs. Odds and stake apply to the whole parlay.
+          </Typography>
+        )}
+      </Box>
+      <DialogContent sx={{
         background: 'linear-gradient(135deg, rgba(15, 15, 35, 0.9), rgba(30, 30, 60, 0.8))',
       }}>
         <Box sx={{ mt: 1, display: 'flex', flexDirection: 'column', gap: 3 }}>
@@ -971,37 +1001,7 @@ export default function CreateBetForm({ open, onClose, onSuccess }: CreateBetFor
             <Typography variant="subtitle2" sx={{ color: '#ffffff', mb: 1, fontWeight: 600 }}>
               Market & Selection *
             </Typography>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 1 }}>
-              <FormControlLabel
-                control={
-                  <Switch
-                    checked={isParlay}
-                    onChange={(_, checked) => {
-                      setIsParlay(checked);
-                      if (!checked) {
-                        setParlayLegs([]);
-                        setParlaySummary('');
-                      }
-                    }}
-                    sx={{
-                      '& .MuiSwitch-switchBase.Mui-checked': { color: '#6366f1' },
-                      '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': { backgroundColor: '#6366f1' },
-                      '& .MuiSwitch-track': { backgroundColor: 'rgba(99, 102, 241, 0.3)' },
-                    }}
-                  />
-                }
-                label={
-                  <Typography sx={{ color: '#ffffff' }}>
-                    Parlay
-                  </Typography>
-                }
-              />
-              {isParlay && (
-                <Typography variant="body2" sx={{ color: '#a1a1aa' }}>
-                  Add multiple legs. Odds and stake apply to the whole parlay.
-                </Typography>
-              )}
-            </Box>
+
             <FormControl fullWidth>
               <InputLabel sx={{ color: '#a1a1aa' }}>Market Type *</InputLabel>
               <Select
@@ -1033,7 +1033,7 @@ export default function CreateBetForm({ open, onClose, onSuccess }: CreateBetFor
                 <MenuItem value="Player Prop">Player Prop</MenuItem>
               </Select>
             </FormControl>
-            
+
             <Box sx={{ mt: 2 }}>
               {renderMarketInputs()}
             </Box>
@@ -1099,7 +1099,7 @@ export default function CreateBetForm({ open, onClose, onSuccess }: CreateBetFor
                   onClick={() => setOddsFormat('american')}
                   sx={{
                     minWidth: 100,
-                    ...(oddsFormat === 'american' 
+                    ...(oddsFormat === 'american'
                       ? { background: 'linear-gradient(135deg, #6366f1, #ec4899)' }
                       : { borderColor: 'rgba(99, 102, 241, 0.3)', color: '#ffffff' }
                     ),
@@ -1113,7 +1113,7 @@ export default function CreateBetForm({ open, onClose, onSuccess }: CreateBetFor
                   onClick={() => setOddsFormat('decimal')}
                   sx={{
                     minWidth: 100,
-                    ...(oddsFormat === 'decimal' 
+                    ...(oddsFormat === 'decimal'
                       ? { background: 'linear-gradient(135deg, #6366f1, #ec4899)' }
                       : { borderColor: 'rgba(99, 102, 241, 0.3)', color: '#ffffff' }
                     ),
@@ -1140,7 +1140,7 @@ export default function CreateBetForm({ open, onClose, onSuccess }: CreateBetFor
                   ),
                 }}
                 helperText={
-                  oddsFormat === 'american' 
+                  oddsFormat === 'american'
                     ? 'Enter -150 (favorite) or +180 (underdog)'
                     : 'Enter 2.0 (even) or 1.5 (favorite)'
                 }
@@ -1153,14 +1153,14 @@ export default function CreateBetForm({ open, onClose, onSuccess }: CreateBetFor
               />
               {typeof oddsValue === 'number' && (
                 <Typography variant="caption" sx={{ color: '#a1a1aa', mt: 0.5, display: 'block' }}>
-                  {oddsFormat === 'american' 
+                  {oddsFormat === 'american'
                     ? `Decimal: ${americanToDecimal(oddsValue).toFixed(2)}`
                     : `American: ${formatOdds(oddsValue, 'american')}`
                   }
                 </Typography>
               )}
             </Box>
-            
+
             <Box sx={{ flex: 1 }}>
               <TextField
                 fullWidth
@@ -1192,8 +1192,8 @@ export default function CreateBetForm({ open, onClose, onSuccess }: CreateBetFor
           {preview && (
             <>
               <Divider sx={{ borderColor: 'rgba(99, 102, 241, 0.3)' }} />
-              <Box sx={{ 
-                p: 2, 
+              <Box sx={{
+                p: 2,
                 borderRadius: 1,
                 backgroundColor: 'rgba(99, 102, 241, 0.1)',
                 border: '1px solid rgba(99, 102, 241, 0.3)',
@@ -1279,15 +1279,15 @@ export default function CreateBetForm({ open, onClose, onSuccess }: CreateBetFor
           </Box>
         </Box>
       </DialogContent>
-      
-      <DialogActions sx={{ 
-        p: 3, 
+
+      <DialogActions sx={{
+        p: 3,
         pt: 2,
         background: 'linear-gradient(135deg, rgba(15, 15, 35, 0.9), rgba(30, 30, 60, 0.8))',
         borderTop: '1px solid rgba(99, 102, 241, 0.3)',
       }}>
-        <Button 
-          onClick={onClose} 
+        <Button
+          onClick={onClose}
           size="large"
           sx={{
             color: '#a1a1aa',
@@ -1299,9 +1299,9 @@ export default function CreateBetForm({ open, onClose, onSuccess }: CreateBetFor
         >
           Cancel
         </Button>
-        <Button 
-          onClick={handleSubmit} 
-          variant="contained" 
+        <Button
+          onClick={handleSubmit}
+          variant="contained"
           disabled={submitting}
           size="large"
           startIcon={submitting ? <CircularProgress size={20} sx={{ color: 'white' }} /> : <AddIcon />}

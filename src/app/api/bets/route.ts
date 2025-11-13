@@ -211,6 +211,9 @@ export async function GET(request: NextRequest) {
       });
     }
 
+    // Exclude parlay legs from top-level listing
+    Object.assign(query, { parlayId: { $exists: false } });
+
     const total = await Bet.countDocuments(query);
     const bets = await Bet.find(query)
       .sort({ createdAt: -1 })
@@ -218,8 +221,41 @@ export async function GET(request: NextRequest) {
       .limit(pageSize)
       .lean();
 
+    type LeanBet = Awaited<typeof bets>[number];
+
+    const parlayIds = bets
+      .filter((bet) => bet.marketType === 'Parlay')
+      .map((bet) => String(bet._id));
+
+    let legsByParlayId: Record<string, LeanBet[]> = {};
+    if (parlayIds.length > 0) {
+      const legDocs = await Bet.find({
+        userId: user._id,
+        parlayId: { $in: parlayIds },
+      })
+        .sort({ startTime: 1 })
+        .lean();
+
+      legsByParlayId = legDocs.reduce<Record<string, LeanBet[]>>((acc, leg) => {
+        const key = leg.parlayId ? String(leg.parlayId) : null;
+        if (!key) return acc;
+        if (!acc[key]) acc[key] = [];
+        acc[key].push(leg as LeanBet);
+        return acc;
+      }, {});
+    }
+
+    const betsWithLegs = bets.map((bet) =>
+      bet.marketType === 'Parlay'
+        ? {
+            ...bet,
+            parlayLegs: legsByParlayId[String(bet._id)] ?? [],
+          }
+        : bet
+    );
+
     return NextResponse.json({
-      bets,
+      bets: betsWithLegs,
       page,
       pageSize,
       total,
