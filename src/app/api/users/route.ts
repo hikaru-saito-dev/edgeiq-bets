@@ -25,7 +25,8 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { userId, companyId } = authInfo;
+    const { userId, companyId: companyIdFromAuth } = authInfo;
+    const companyId = companyIdFromAuth || process.env.NEXT_PUBLIC_WHOP_COMPANY_ID;
     if (!companyId) {
       return NextResponse.json({ error: 'Company ID not found' }, { status: 400 });
     }

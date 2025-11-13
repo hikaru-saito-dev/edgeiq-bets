@@ -150,7 +150,8 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { userId, companyId } = authInfo;
+    const { userId, companyId: companyIdFromAuth } = authInfo;
+    const companyId = companyIdFromAuth || process.env.NEXT_PUBLIC_WHOP_COMPANY_ID;
 
     const accessRole = companyId ? await userHasCompanyAccess({ userId, companyId }) : 'none';
     if (accessRole !== 'owner' && accessRole !== 'admin') {
@@ -295,8 +296,6 @@ export async function POST(request: NextRequest) {
     }
 
     const { userId, companyId: companyIdFromAuth } = authInfo;
-
-    // Use companyId from auth, or fallback to environment variable
     const companyId = companyIdFromAuth || process.env.NEXT_PUBLIC_WHOP_COMPANY_ID;
 
     const accessRole = companyId ? await userHasCompanyAccess({ userId, companyId }) : 'none';

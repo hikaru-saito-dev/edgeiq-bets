@@ -20,10 +20,17 @@ async function ensureUserExists(userId: string, companyId: string): Promise<'own
       const userCount = await User.countDocuments({ companyId });
       const isFirstUser = userCount === 0;
       
-      // Create user - first user becomes owner, others become member
-      const whopUserData = await getWhopUser(userId);
-      const companyInfo = await getWhopCompany(companyId);
+      // Try to fetch user data from Whop API (but don't fail if it doesn't work)
+      let whopUserData = null;
+      let companyInfo = null;
+      try {
+        whopUserData = await getWhopUser(userId);
+        companyInfo = await getWhopCompany(companyId);
+      } catch {
+        // Continue even if Whop API calls fail
+      }
       
+      // Create user - first user becomes owner, others become member
       user = await User.create({
         whopUserId: userId,
         companyId,

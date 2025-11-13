@@ -13,7 +13,7 @@ export async function GET(request: NextRequest) {
     const headers = await import('next/headers').then(m => m.headers());
     const authInfo = await verifyWhopUser(headers);
     const companyIdFromAuth = authInfo?.companyId;
-
+    const companyId = companyIdFromAuth || process.env.NEXT_PUBLIC_WHOP_COMPANY_ID;
     const { searchParams } = new URL(request.url);
     const range = (searchParams.get('range') || 'all') as 'all' | '30d' | '7d';
     const companyFilter = searchParams.get('companyId');
@@ -27,8 +27,8 @@ export async function GET(request: NextRequest) {
     };
     if (companyFilter) {
       query.companyId = companyFilter;
-    } else if (companyIdFromAuth) {
-      query.companyId = companyIdFromAuth;
+    } else if (companyId) {
+      query.companyId = companyId;
     }
 
     if (search) {
