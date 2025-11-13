@@ -8,6 +8,8 @@ import {
   createBetSchema, 
   createBetSchemaLegacy,
   updateBetSchema, 
+  type GameSelectionInput,
+  type MarketSelectionInput,
 } from '@/utils/validateBet';
 import { z } from 'zod';
 import { updateUserStats } from '@/lib/stats';
@@ -387,13 +389,24 @@ export async function POST(request: NextRequest) {
     const parlayLines: IBet[] = [];
     if (validatedNew && validatedNew.market.marketType === 'Parlay') {
       // Prefer structured legs if provided; otherwise parse summary for backward compatibility
-      const structuredLegs = (validatedNew as unknown as { parlay?: { legs?: Array<{ game: any; market: any; label?: string }> } }).parlay?.legs;
+  type NonParlayMarket = Extract<MarketSelectionInput, { marketType: 'ML' | 'Spread' | 'Total' | 'Player Prop' }>;
+  type ParlayLegInput = {
+    game: GameSelectionInput;
+    market: NonParlayMarket;
+    label?: string;
+  };
+  const structuredLegs = validatedNew.parlay?.legs as ParlayLegInput[] | undefined;
       if (structuredLegs && Array.isArray(structuredLegs) && structuredLegs.length > 0) {
         for (const leg of structuredLegs) {
           const legGame = leg.game;
           const m = leg.market;
           const legStart = legGame.startTime ? new Date(legGame.startTime) : validatedNew.game.startTime;
           const lockedLeg = new Date() >= legStart;
+          const eventName =
+            legGame.awayTeam && legGame.homeTeam
+              ? `${legGame.awayTeam} @ ${legGame.homeTeam}`
+              : legGame.homeTeam ?? legGame.awayTeam ?? validatedNew.eventName;
+
           const lineBetData: Record<string, unknown> = {
             userId: user._id,
             startTime: legStart,
@@ -403,7 +416,7 @@ export async function POST(request: NextRequest) {
             result: 'pending' as const,
             locked: lockedLeg,
             companyId: companyId || user.companyId,
-            eventName: `${legGame.awayTeam ?? ''} @ ${legGame.homeTeam ?? ''}`.trim() || validatedNew.eventName,
+            eventName,
             sport: legGame.sport,
             sportKey: legGame.sportKey,
             league: legGame.league,
@@ -415,13 +428,33 @@ export async function POST(request: NextRequest) {
             providerEventId: legGame.providerEventId,
             marketType: m.marketType,
             parlayId: bet._id,
-            ...(m.selection && { selection: m.selection }),
-            ...(m.line !== undefined && { line: m.line }),
-            ...(m.overUnder && { overUnder: m.overUnder }),
-            ...(m.playerName && { playerName: m.playerName }),
-            ...(m.playerId && { playerId: m.playerId }),
-            ...(m.statType && { statType: m.statType }),
           };
+
+          switch (m.marketType) {
+            case 'ML':
+              lineBetData.selection = m.selection;
+              break;
+            case 'Spread':
+              lineBetData.selection = m.selection;
+              lineBetData.line = m.line;
+              break;
+            case 'Total':
+              lineBetData.line = m.line;
+              lineBetData.overUnder = m.overUnder;
+              break;
+            case 'Player Prop':
+              lineBetData.playerName = m.playerName;
+              if (m.playerId !== undefined) {
+                lineBetData.playerId = m.playerId;
+              }
+              lineBetData.statType = m.statType;
+              lineBetData.line = m.line;
+              lineBetData.overUnder = m.overUnder;
+              break;
+            default:
+              break;
+          }
+
           const lineBet = await Bet.create(lineBetData);
           parlayLines.push(lineBet);
         }
