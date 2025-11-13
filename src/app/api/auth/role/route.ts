@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { verifyWhopUser, getUserRoleFromDB, getWhopUser, getWhopCompany } from '@/lib/whop';
+import { verifyWhopUser, getWhopUser, getWhopCompany } from '@/lib/whop';
 import connectDB from '@/lib/db';
 import { User } from '@/models/User';
 
