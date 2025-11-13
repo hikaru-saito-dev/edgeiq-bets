@@ -10,55 +10,62 @@ export const runtime = 'nodejs';
  * First user in company becomes owner, others become member
  */
 async function ensureUserExists(userId: string, companyId: string): Promise<'owner' | 'admin' | 'member' | 'none'> {
-  await connectDB();
-  
-  let user = await User.findOne({ whopUserId: userId, companyId });
-  
-  if (!user) {
-    // Check if this is the first user in the company (set as owner)
-    const userCount = await User.countDocuments({ companyId });
-    const isFirstUser = userCount === 0;
+  try {
+    await connectDB();
     
-    // Create user - first user becomes owner, others become member
-    const whopUserData = await getWhopUser(userId);
-    const companyInfo = await getWhopCompany(companyId);
+    let user = await User.findOne({ whopUserId: userId, companyId });
     
-    user = await User.create({
-      whopUserId: userId,
-      companyId,
-      role: isFirstUser ? 'owner' : 'member',
-      alias: whopUserData?.name || whopUserData?.username || `User ${userId.slice(0, 8)}`,
-      whopName: companyInfo?.name,
-      whopUsername: whopUserData?.username,
-      whopDisplayName: whopUserData?.name,
-      whopAvatarUrl: whopUserData?.profilePicture?.sourceUrl,
-      optIn: true,
-      membershipPlans: [],
-      stats: {
-        winRate: 0,
-        roi: 0,
-        unitsPL: 0,
-        currentStreak: 0,
-        longestStreak: 0,
-      },
-    });
+    if (!user) {
+      // Check if this is the first user in the company (set as owner)
+      const userCount = await User.countDocuments({ companyId });
+      const isFirstUser = userCount === 0;
+      
+      // Create user - first user becomes owner, others become member
+      const whopUserData = await getWhopUser(userId);
+      const companyInfo = await getWhopCompany(companyId);
+      
+      user = await User.create({
+        whopUserId: userId,
+        companyId,
+        role: isFirstUser ? 'owner' : 'member',
+        alias: whopUserData?.name || whopUserData?.username || `User ${userId.slice(0, 8)}`,
+        whopName: companyInfo?.name,
+        whopUsername: whopUserData?.username,
+        whopDisplayName: whopUserData?.name,
+        whopAvatarUrl: whopUserData?.profilePicture?.sourceUrl,
+        optIn: true,
+        membershipPlans: [],
+        stats: {
+          winRate: 0,
+          roi: 0,
+          unitsPL: 0,
+          currentStreak: 0,
+          longestStreak: 0,
+        },
+      });
+      
+      return user.role || 'member';
+    }
     
     return user.role || 'member';
+  } catch (error) {
+    return 'none';
   }
-  
-  return user.role || 'member';
 }
 
 export async function GET() {
   try {
-    const headers = await import('next/headers').then((m) => m.headers());
+    const headers = await import('next/headers').then(m => m.headers());
     const authInfo = await verifyWhopUser(headers);
-
+    
     if (!authInfo) {
       return NextResponse.json({ role: 'none', isAuthorized: false }, { status: 401 });
     }
 
-    const { userId, companyId } = authInfo;
+    const { userId, companyId: companyIdFromAuth } = authInfo;
+
+    // Use companyId from auth, or fallback to environment variable
+    const companyId = companyIdFromAuth || process.env.NEXT_PUBLIC_WHOP_COMPANY_ID;
 
     if (!companyId) {
       return NextResponse.json({ role: 'none', isAuthorized: false }, { status: 200 });
