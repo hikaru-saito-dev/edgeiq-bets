@@ -150,10 +150,10 @@ export default function ProfileForm() {
   };
 
   // Generate affiliate link by appending ?a={username} to base URL
-  const generateAffiliateLink = (baseUrl: string, username: string): string => {
+  const generateAffiliateLink = (baseUrl: string): string => {
     try {
       const url = new URL(baseUrl);
-      url.searchParams.set('a', username);
+      url.searchParams.set('a', 'woodiee');
       return url.toString();
     } catch {
       return `${baseUrl}${baseUrl.includes('?') ? '&' : '?'}a=woodiee `;
@@ -185,8 +185,7 @@ export default function ProfileForm() {
   };
 
   const copyAffiliateLink = (baseUrl: string) => {
-    const username = userData?.whopUsername || userData?.whopDisplayName || 'username';
-    const affiliateLink = generateAffiliateLink(baseUrl, username);
+    const affiliateLink = generateAffiliateLink(baseUrl);
     navigator.clipboard.writeText(affiliateLink);
     toast.showSuccess('Affiliate link copied to clipboard!');
   };
@@ -708,7 +707,7 @@ export default function ProfileForm() {
                         fontSize: '0.85rem',
                       }}
                     >
-                      {generateAffiliateLink(plan.url, userData?.whopUsername || userData?.whopDisplayName || 'username')}
+                      {generateAffiliateLink(plan.url)}
                     </Typography>
                   </Box>
                   <IconButton
