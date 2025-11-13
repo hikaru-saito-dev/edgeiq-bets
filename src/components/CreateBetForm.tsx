@@ -881,18 +881,22 @@ export default function CreateBetForm({ open, onClose, onSuccess }: CreateBetFor
         }
       }}
     >
-      <DialogTitle sx={{
-        background: 'linear-gradient(135deg, rgba(15, 15, 35, 0.9), rgba(30, 30, 60, 0.8))',
-        borderBottom: '1px solid rgba(99, 102, 241, 0.3)',
-      }}>
+      <DialogTitle
+        sx={{ 
+          background: 'linear-gradient(135deg, rgba(15, 15, 35, 0.9), rgba(30, 30, 60, 0.8))',
+          borderBottom: '1px solid rgba(99, 102, 241, 0.3)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: 2,
+        }}
+      >
         <Box display="flex" alignItems="center" gap={1}>
           <AddIcon sx={{ color: '#6366f1' }} />
           <Typography variant="h6" fontWeight={600} sx={{ color: '#ffffff' }}>
             Create New Bet
           </Typography>
         </Box>
-      </DialogTitle>
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 1 }}>
         <FormControlLabel
           control={
             <Switch
@@ -916,13 +920,10 @@ export default function CreateBetForm({ open, onClose, onSuccess }: CreateBetFor
               Parlay
             </Typography>
           }
+          sx={{ margin: 0, alignSelf: 'flex-start' }}
         />
-        {isParlay && (
-          <Typography variant="body2" sx={{ color: '#a1a1aa' }}>
-            Add multiple legs. Odds and stake apply to the whole parlay.
-          </Typography>
-        )}
-      </Box>
+      </DialogTitle>
+      
       <DialogContent sx={{
         background: 'linear-gradient(135deg, rgba(15, 15, 35, 0.9), rgba(30, 30, 60, 0.8))',
       }}>
