@@ -311,27 +311,18 @@ export default function BetCard({ bet, onUpdate }: BetCardProps) {
                       <Typography variant="subtitle2" sx={{ color: '#ffffff', fontWeight: 600 }}>
                         {leg.eventName}
                       </Typography>
-                      <Typography variant="caption" sx={{ color: '#a1a1aa' }}>
+                      <Typography variant="caption" sx={{ color: '#a1a1aa', display: 'block' }}>
                         {new Date(leg.startTime).toLocaleString()} · {renderLegDescription(leg)}
                       </Typography>
-                      <Box display="flex" gap={2} flexWrap="wrap">
-                        <Chip
-                          size="small"
-                          label={`Odds ${leg.odds.toFixed(2)}`}
-                          sx={{ bgcolor: 'rgba(99, 102, 241, 0.2)', color: '#ffffff' }}
-                        />
-                        <Chip
-                          size="small"
-                          label={`Units ${leg.units.toFixed(2)}`}
-                          sx={{ bgcolor: 'rgba(34, 197, 94, 0.2)', color: '#ffffff' }}
-                        />
-                        <Chip
-                          size="small"
-                          label={leg.result.toUpperCase()}
-                          color={leg.result === 'pending' ? 'info' : leg.result === 'win' ? 'success' : leg.result === 'loss' ? 'error' : 'warning'}
-                          sx={{ fontWeight: 600 }}
-                        />
-                      </Box>
+                      <Typography variant="caption" sx={{ color: '#94a3b8', display: 'block' }}>
+                        Odds / stake included in parlay total
+                      </Typography>
+                      <Chip
+                        size="small"
+                        label={leg.result.toUpperCase()}
+                        color={leg.result === 'pending' ? 'info' : leg.result === 'win' ? 'success' : leg.result === 'loss' ? 'error' : 'warning'}
+                        sx={{ fontWeight: 600, alignSelf: 'flex-start' }}
+                      />
                     </Box>
                   ))}
                 </Box>

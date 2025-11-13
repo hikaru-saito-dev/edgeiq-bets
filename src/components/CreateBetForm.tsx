@@ -1075,7 +1075,7 @@ export default function CreateBetForm({ open, onClose, onSuccess }: CreateBetFor
                         onDelete={() => {
                           const next = parlayLegs.filter((_, i) => i !== idx);
                           setParlayLegs(next);
-                          setParlaySummary(next.join(' + '));
+                          setParlaySummary(next.map((l) => l.label).join(' + '));
                         }}
                         sx={{ bgcolor: 'rgba(99, 102, 241, 0.15)', color: '#ffffff' }}
                       />
