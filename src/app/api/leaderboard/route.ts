@@ -21,7 +21,10 @@ export async function GET(request: NextRequest) {
     const pageSize = Math.min(100, Math.max(1, parseInt(searchParams.get('pageSize') || '10', 10)));
     const search = (searchParams.get('search') || '').trim();
 
-    const query: Record<string, unknown> = { optIn: true };
+    const query: Record<string, unknown> = { 
+      optIn: true,
+      role: { $in: ['owner', 'admin'] },
+    };
     if (companyFilter) {
       query.companyId = companyFilter;
     } else if (companyIdFromAuth) {

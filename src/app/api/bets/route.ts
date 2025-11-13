@@ -175,10 +175,15 @@ export async function GET(request: NextRequest) {
         companyInfo = await getWhopCompany(companyId);
       }
 
+      // Check if this is the first user in the company (set as owner)
+      const userCount = await User.countDocuments({ companyId: companyId || 'default' });
+      const isFirstUser = userCount === 0;
+
       // Create user if doesn't exist
       user = await User.create({
         whopUserId: userId,
         companyId: companyId || 'default',
+        role: isFirstUser ? 'owner' : 'member',
         alias: whopUserData?.name || whopUserData?.username || `User ${userId.slice(0, 8)}`,
         whopName: companyInfo?.name,
         whopUsername: whopUserData?.username,
@@ -330,10 +335,15 @@ export async function POST(request: NextRequest) {
         companyInfo = await getWhopCompany(companyId);
       }
 
+      // Check if this is the first user in the company (set as owner)
+      const userCount = await User.countDocuments({ companyId: companyId || 'default' });
+      const isFirstUser = userCount === 0;
+
       // Create user if doesn't exist
       user = await User.create({
         whopUserId: userId,
         companyId: companyId || 'default',
+        role: isFirstUser ? 'owner' : 'member',
         alias: whopUserData?.name || whopUserData?.username || `User ${userId.slice(0, 8)}`,
         whopName: companyInfo?.name,
         whopUsername: whopUserData?.username,

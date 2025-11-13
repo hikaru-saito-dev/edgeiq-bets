@@ -442,21 +442,28 @@ export async function getWhopCompanyData(companyId: string): Promise<{
   };
 }
 
-export async function userHasCompanyAccess({ userId, companyId }: { userId: string; companyId: string }): Promise<'owner' | 'admin' | 'member' | 'none'> {
+/**
+ * Get user role from database (replaces Whop API-based role checking)
+ */
+export async function getUserRoleFromDB({ userId, companyId }: { userId: string; companyId: string }): Promise<'owner' | 'admin' | 'member' | 'none'> {
   try {
-    const whopSdk = getWhopSdk(companyId);
-    const response = await whopSdk.companies.listAuthorizedUsers({ companyId });
-    const authorizedUsers = response.company?.authorizedUsers ?? [];
-    const match = authorizedUsers.find((member) => member?.userId === userId);
-    if (!match?.role) return 'none';
-
-    const role = match.role.toLowerCase() as 'owner' | 'admin' | 'manager' | 'moderator' | 'support' | 'app_manager' | 'sales_manager';
-    if (role === 'owner') return 'owner';
-    if (role === 'admin') return 'admin';
-    return 'member';
+    const { User } = await import('@/models/User');
+    const connectDB = await import('@/lib/db').then(m => m.default);
+    await connectDB();
+    
+    const user = await User.findOne({ whopUserId: userId, companyId });
+    if (!user) return 'none';
+    
+    return user.role || 'member';
   } catch (error) {
-    console.error('Error checking company access:', error);
     return 'none';
   }
+}
+
+/**
+ * Legacy function - now uses database instead of Whop API
+ */
+export async function userHasCompanyAccess({ userId, companyId }: { userId: string; companyId: string }): Promise<'owner' | 'admin' | 'member' | 'none'> {
+  return getUserRoleFromDB({ userId, companyId });
 }
 

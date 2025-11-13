@@ -1091,105 +1091,107 @@ export default function CreateBetForm({ open, onClose, onSuccess }: CreateBetFor
           </Box>
 
           {/* Odds & Stake */}
-          <Box sx={{ display: 'flex', gap: 2, flexDirection: { xs: 'column', sm: 'row' } }}>
-            <Box sx={{ flex: 1 }}>
-              <Typography variant="subtitle2" sx={{ color: '#ffffff', mb: 1, fontWeight: 600 }}>
-                Odds *
-              </Typography>
-              <Box sx={{ display: 'flex', gap: 1, mb: 1 }}>
-                <Button
-                  size="small"
-                  variant={oddsFormat === 'american' ? 'contained' : 'outlined'}
-                  onClick={() => setOddsFormat('american')}
-                  sx={{
-                    minWidth: 100,
-                    ...(oddsFormat === 'american' 
-                      ? { background: 'linear-gradient(135deg, #6366f1, #ec4899)' }
-                      : { borderColor: 'rgba(99, 102, 241, 0.3)', color: '#ffffff' }
-                    ),
-                  }}
-                >
-                  American
-                </Button>
-                <Button
-                  size="small"
-                  variant={oddsFormat === 'decimal' ? 'contained' : 'outlined'}
-                  onClick={() => setOddsFormat('decimal')}
-                  sx={{
-                    minWidth: 100,
-                    ...(oddsFormat === 'decimal' 
-                      ? { background: 'linear-gradient(135deg, #6366f1, #ec4899)' }
-                      : { borderColor: 'rgba(99, 102, 241, 0.3)', color: '#ffffff' }
-                    ),
-                  }}
-                >
-                  Decimal
-                </Button>
-              </Box>
-              <TextField
-                fullWidth
-                label={oddsFormat === 'american' ? 'Odds (e.g., -150 or +180)' : 'Odds (e.g., 2.0 or 1.5)'}
-                type="number"
-                value={oddsValue}
-                onChange={(e) => {
-                  const val = e.target.value;
-                  setOddsValue(val ? parseFloat(val) : '');
-                }}
-                required
-                InputProps={{
-                  startAdornment: (
-                    <InputAdornment position="start">
-                      <TrendingUpIcon sx={{ color: '#6366f1' }} />
-                    </InputAdornment>
+          <Box>
+            <Typography variant="subtitle2" sx={{ color: '#ffffff', mb: 1, fontWeight: 600 }}>
+              Odds *
+            </Typography>
+            <Box sx={{ display: 'flex', gap: 1, mb: 1 }}>
+              <Button
+                size="small"
+                variant={oddsFormat === 'american' ? 'contained' : 'outlined'}
+                onClick={() => setOddsFormat('american')}
+                sx={{
+                  minWidth: 100,
+                  ...(oddsFormat === 'american' 
+                    ? { background: 'linear-gradient(135deg, #6366f1, #ec4899)' }
+                    : { borderColor: 'rgba(99, 102, 241, 0.3)', color: '#ffffff' }
                   ),
                 }}
-                helperText={
-                  oddsFormat === 'american' 
-                    ? 'Enter -150 (favorite) or +180 (underdog)'
-                    : 'Enter 2.0 (even) or 1.5 (favorite)'
-                }
+              >
+                American
+              </Button>
+              <Button
+                size="small"
+                variant={oddsFormat === 'decimal' ? 'contained' : 'outlined'}
+                onClick={() => setOddsFormat('decimal')}
                 sx={{
-                  '& .MuiOutlinedInput-root': { color: '#ffffff' },
-                  '& .MuiInputLabel-root': { color: '#a1a1aa' },
-                  '& .MuiFormHelperText-root': { color: '#a1a1aa' },
-                  '& fieldset': { borderColor: 'rgba(99, 102, 241, 0.3)' },
+                  minWidth: 100,
+                  ...(oddsFormat === 'decimal' 
+                    ? { background: 'linear-gradient(135deg, #6366f1, #ec4899)' }
+                    : { borderColor: 'rgba(99, 102, 241, 0.3)', color: '#ffffff' }
+                  ),
                 }}
-              />
-              {typeof oddsValue === 'number' && (
-                <Typography variant="caption" sx={{ color: '#a1a1aa', mt: 0.5, display: 'block' }}>
-                  {oddsFormat === 'american' 
-                    ? `Decimal: ${americanToDecimal(oddsValue).toFixed(2)}`
-                    : `American: ${formatOdds(oddsValue, 'american')}`
+              >
+                Decimal
+              </Button>
+            </Box>
+            <Box sx={{ display: 'flex', gap: 2, flexDirection: { xs: 'column', sm: 'row' } }}>
+              <Box sx={{ flex: 1 }}>
+                <TextField
+                  fullWidth
+                  label={oddsFormat === 'american' ? 'Odds (e.g., -150 or +180)' : 'Odds (e.g., 2.0 or 1.5)'}
+                  type="number"
+                  value={oddsValue}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setOddsValue(val ? parseFloat(val) : '');
+                  }}
+                  required
+                  InputProps={{
+                    startAdornment: (
+                      <InputAdornment position="start">
+                        <TrendingUpIcon sx={{ color: '#6366f1' }} />
+                      </InputAdornment>
+                    ),
+                  }}
+                  helperText={
+                    oddsFormat === 'american' 
+                      ? 'Enter -150 (favorite) or +180 (underdog)'
+                      : 'Enter 2.0 (even) or 1.5 (favorite)'
                   }
-                </Typography>
-              )}
+                  sx={{
+                    '& .MuiOutlinedInput-root': { color: '#ffffff' },
+                    '& .MuiInputLabel-root': { color: '#a1a1aa' },
+                    '& .MuiFormHelperText-root': { color: '#a1a1aa' },
+                    '& fieldset': { borderColor: 'rgba(99, 102, 241, 0.3)' },
+                  }}
+                />
+              </Box>
+              
+              <Box sx={{ flex: 1 }}>
+                <TextField
+                  fullWidth
+                  label="Stake (Units) *"
+                  type="number"
+                  value={units}
+                  onChange={(e) => setUnits(e.target.value ? parseFloat(e.target.value) : '')}
+                  required
+                  inputProps={{ min: 0.01, step: 0.01 }}
+                  InputProps={{
+                    startAdornment: (
+                      <InputAdornment position="start">
+                        <AttachMoneyIcon sx={{ color: '#6366f1' }} />
+                      </InputAdornment>
+                    ),
+                  }}
+                  helperText="Minimum: 0.01 units"
+                  sx={{
+                    '& .MuiOutlinedInput-root': { color: '#ffffff' },
+                    '& .MuiInputLabel-root': { color: '#a1a1aa' },
+                    '& .MuiFormHelperText-root': { color: '#a1a1aa' },
+                    '& fieldset': { borderColor: 'rgba(99, 102, 241, 0.3)' },
+                  }}
+                />
+              </Box>
             </Box>
-            
-            <Box sx={{ flex: 1 }}>
-              <TextField
-                fullWidth
-                label="Stake (Units) *"
-                type="number"
-                value={units}
-                onChange={(e) => setUnits(e.target.value ? parseFloat(e.target.value) : '')}
-                required
-                inputProps={{ min: 0.01, step: 0.01 }}
-                InputProps={{
-                  startAdornment: (
-                    <InputAdornment position="start">
-                      <AttachMoneyIcon sx={{ color: '#6366f1' }} />
-                    </InputAdornment>
-                  ),
-                }}
-                helperText="Minimum: 0.01 units"
-                sx={{
-                  '& .MuiOutlinedInput-root': { color: '#ffffff' },
-                  '& .MuiInputLabel-root': { color: '#a1a1aa' },
-                  '& .MuiFormHelperText-root': { color: '#a1a1aa' },
-                  '& fieldset': { borderColor: 'rgba(99, 102, 241, 0.3)' },
-                }}
-              />
-            </Box>
+            {typeof oddsValue === 'number' && (
+              <Typography variant="caption" sx={{ color: '#a1a1aa', mt: 0.5, display: 'block' }}>
+                {oddsFormat === 'american' 
+                  ? `Decimal: ${americanToDecimal(oddsValue).toFixed(2)}`
+                  : `American: ${formatOdds(oddsValue, 'american')}`
+                }
+              </Typography>
+            )}
           </Box>
 
           {/* Bet Preview */}

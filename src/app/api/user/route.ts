@@ -12,6 +12,8 @@ const updateUserSchema = z.object({
   alias: z.string().min(1).max(50).optional(),
   optIn: z.boolean().optional(),
   whopName: z.string().max(100).optional(),
+  whopWebhookUrl: z.union([z.string().url(), z.literal('')]).optional(),
+  discordWebhookUrl: z.union([z.string().url(), z.literal('')]).optional(),
   membershipPlans: z.array(z.object({
     id: z.string(),
     name: z.string(),
@@ -54,10 +56,15 @@ export async function GET() {
         companyInfo = await getWhopCompany(companyId);
       }
 
+      // Check if this is the first user in the company (set as owner)
+      const userCount = await User.countDocuments({ companyId: companyId || 'default' });
+      const isFirstUser = userCount === 0;
+
       // Create user if doesn't exist
       user = await User.create({
         whopUserId: verifiedUserId,
         companyId: companyId || 'default',
+        role: isFirstUser ? 'owner' : 'member',
         alias: whopUserData?.name || whopUserData?.username || `User ${verifiedUserId.slice(0, 8)}`,
         whopName: companyInfo?.name,
         whopUsername: whopUserData?.username,
@@ -112,6 +119,8 @@ export async function GET() {
         whopUsername: user.whopUsername,
         whopDisplayName: user.whopDisplayName,
         whopAvatarUrl: user.whopAvatarUrl,
+        whopWebhookUrl: user.whopWebhookUrl,
+        discordWebhookUrl: user.discordWebhookUrl,
         membershipPlans: user.membershipPlans || [],
       },
       stats,
@@ -161,9 +170,13 @@ export async function PATCH(request: NextRequest) {
         companyInfo = await getWhopCompany(companyId);
       }
 
+      const userCount = await User.countDocuments({ companyId: companyId || 'default' });
+      const isFirstUser = userCount === 0;
+
       user = await User.create({
         whopUserId: userId,
         companyId: companyId || 'default',
+        role: isFirstUser ? 'owner' : 'member',
         alias: validated.alias || whopUserData?.name || whopUserData?.username || `User ${userId.slice(0, 8)}`,
         whopName: companyInfo?.name,
         whopUsername: whopUserData?.username,
@@ -189,6 +202,12 @@ export async function PATCH(request: NextRequest) {
       }
       if (validated.whopName !== undefined) {
         user.whopName = validated.whopName;
+      }
+      if (validated.whopWebhookUrl !== undefined) {
+        user.whopWebhookUrl = validated.whopWebhookUrl || undefined;
+      }
+      if (validated.discordWebhookUrl !== undefined) {
+        user.discordWebhookUrl = validated.discordWebhookUrl || undefined;
       }
       if (validated.membershipPlans !== undefined) {
         user.membershipPlans = validated.membershipPlans as MembershipPlan[];

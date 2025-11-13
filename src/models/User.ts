@@ -8,14 +8,19 @@ export interface MembershipPlan {
   isPremium?: boolean; // Whether this is a premium/paid plan
 }
 
+export type UserRole = 'owner' | 'admin' | 'member';
+
 export interface IUser extends Document {
   alias: string;
   whopUserId: string;
   companyId: string; // Whop company/organization ID
+  role: UserRole; // User role: owner, admin, or member
   whopName?: string; // Name of the Whop/company
   whopUsername?: string; // Username from Whop profile
   whopDisplayName?: string; // Display name from Whop profile
   whopAvatarUrl?: string; // Avatar URL from Whop profile
+  whopWebhookUrl?: string; // Whop webhook URL for notifications
+  discordWebhookUrl?: string; // Discord webhook URL for notifications
   membershipPlans?: MembershipPlan[]; // Array of membership plans for this Whop
   membershipUrl?: string; // Legacy: Primary membership URL (deprecated, use membershipPlans)
   optIn: boolean;
@@ -42,10 +47,13 @@ const UserSchema = new Schema<IUser>({
   alias: { type: String, required: true, trim: true },
   whopUserId: { type: String, required: true, index: true },
   companyId: { type: String, required: true, index: true },
+  role: { type: String, enum: ['owner', 'admin', 'member'], default: 'member', index: true },
   whopName: { type: String, trim: true },
   whopUsername: { type: String, trim: true },
   whopDisplayName: { type: String, trim: true },
   whopAvatarUrl: { type: String, trim: true },
+  whopWebhookUrl: { type: String, trim: true },
+  discordWebhookUrl: { type: String, trim: true },
   membershipPlans: { type: [MembershipPlanSchema], default: [] },
   membershipUrl: { type: String }, // Legacy field for backward compatibility
   optIn: { type: Boolean, default: true },

@@ -68,6 +68,8 @@ interface UserData {
   whopUsername?: string;
   whopDisplayName?: string;
   whopAvatarUrl?: string;
+  whopWebhookUrl?: string;
+  discordWebhookUrl?: string;
   membershipPlans?: Array<{
     id: string;
     name: string;
@@ -81,6 +83,8 @@ export default function ProfileForm() {
   const toast = useToast();
   const [alias, setAlias] = useState('');
   const [optIn, setOptIn] = useState(true);
+  const [whopWebhookUrl, setWhopWebhookUrl] = useState('');
+  const [discordWebhookUrl, setDiscordWebhookUrl] = useState('');
   const [userData, setUserData] = useState<UserData | null>(null);
   const [stats, setStats] = useState<UserStats | null>(null);
   const [bets, setBets] = useState<Bet[]>([]);
@@ -115,6 +119,8 @@ export default function ProfileForm() {
       setUserData(profileData.user);
       setAlias(profileData.user.alias || profileData.user.whopDisplayName || profileData.user.whopUsername || '');
       setOptIn(profileData.user.optIn);
+      setWhopWebhookUrl(profileData.user.whopWebhookUrl || '');
+      setDiscordWebhookUrl(profileData.user.discordWebhookUrl || '');
       setStats(profileData.stats);
       setBets(betsData.bets || []);
     } catch (error) {
@@ -131,7 +137,12 @@ export default function ProfileForm() {
       const response = await fetch('/api/user', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ alias, optIn }),
+        body: JSON.stringify({ 
+          alias, 
+          optIn,
+          whopWebhookUrl: whopWebhookUrl || undefined,
+          discordWebhookUrl: discordWebhookUrl || undefined,
+        }),
       });
 
       if (!response.ok) {
@@ -360,6 +371,62 @@ export default function ProfileForm() {
           }
           label="Opt-in to Leaderboard"
           sx={{ mt: 2, color: '#ffffff' }}
+        />
+        <Typography variant="h6" sx={{ color: '#ffffff', mt: 3, mb: 2, fontWeight: 600 }}>
+          Notification Webhooks
+        </Typography>
+        <Typography variant="body2" sx={{ color: '#a1a1aa', mb: 2 }}>
+          Configure webhook URLs to receive bet notifications. Only owners and admins will receive notifications.
+        </Typography>
+        <TextField
+          fullWidth
+          label="Discord Webhook URL"
+          value={discordWebhookUrl}
+          onChange={(e) => setDiscordWebhookUrl(e.target.value)}
+          placeholder="https://discord.com/api/webhooks/..."
+          margin="normal"
+          sx={{
+            '& .MuiOutlinedInput-root': {
+              color: '#ffffff',
+              '& fieldset': {
+                borderColor: 'rgba(99, 102, 241, 0.3)',
+              },
+              '&:hover fieldset': {
+                borderColor: 'rgba(99, 102, 241, 0.5)',
+              },
+              '&.Mui-focused fieldset': {
+                borderColor: '#6366f1',
+              },
+            },
+            '& .MuiInputLabel-root': {
+              color: '#a1a1aa',
+            },
+          }}
+        />
+        <TextField
+          fullWidth
+          label="Whop Webhook URL"
+          value={whopWebhookUrl}
+          onChange={(e) => setWhopWebhookUrl(e.target.value)}
+          placeholder="https://data.whop.com/api/v5/feed/webhooks/..."
+          margin="normal"
+          sx={{
+            '& .MuiOutlinedInput-root': {
+              color: '#ffffff',
+              '& fieldset': {
+                borderColor: 'rgba(99, 102, 241, 0.3)',
+              },
+              '&:hover fieldset': {
+                borderColor: 'rgba(99, 102, 241, 0.5)',
+              },
+              '&.Mui-focused fieldset': {
+                borderColor: '#6366f1',
+              },
+            },
+            '& .MuiInputLabel-root': {
+              color: '#a1a1aa',
+            },
+          }}
         />
         <Button
           variant="contained"

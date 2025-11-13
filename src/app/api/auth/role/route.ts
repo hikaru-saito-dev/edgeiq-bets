@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { verifyWhopUser, userHasCompanyAccess } from '@/lib/whop';
+import { verifyWhopUser, getUserRoleFromDB } from '@/lib/whop';
 
 export const runtime = 'nodejs';
 
@@ -18,12 +18,11 @@ export async function GET() {
       return NextResponse.json({ role: 'none', isAuthorized: false }, { status: 200 });
     }
 
-    const role = await userHasCompanyAccess({ userId, companyId });
+    const role = await getUserRoleFromDB({ userId, companyId });
     const isAuthorized = role === 'owner' || role === 'admin';
 
     return NextResponse.json({ role, companyId, isAuthorized });
   } catch (error) {
-    console.error('Error checking access role:', error);
     return NextResponse.json({ role: 'none', isAuthorized: false }, { status: 500 });
   }
 }

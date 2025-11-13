@@ -1,18 +1,8 @@
 import { Bet } from '@/models/Bet';
 import type { IBet } from '@/models/Bet';
 import type { IUser } from '@/models/User';
-
-// Environment variables
-const DISCORD_WEBHOOK_URL_ENV_KEY = 'DISCORD_WEBHOOK_URL';
-const WHOP_WEBHOOK_URL_ENV_KEY = 'WHOP_WEBHOOK_URL';
-
-function getDiscordWebhookUrl(): string | null {
-  return process.env[DISCORD_WEBHOOK_URL_ENV_KEY] || null;
-}
-
-function getWhopWebhookUrl(): string | null {
-  return process.env[WHOP_WEBHOOK_URL_ENV_KEY] || null;
-}
+import { User } from '@/models/User';
+import connectDB from '@/lib/db';
 
 /**
  * Send message via webhook (works for both Discord and Whop webhooks)
@@ -60,34 +50,44 @@ async function sendWebhookMessage(message: string, webhookUrl: string): Promise<
 
 
 /**
- * Main send message function - sends to both Discord and Whop webhooks simultaneously
- * if both are configured. If only one is configured, sends to that one only.
- * 
- * Webhook methods don't require companyId, but it's kept in the signature
- * for compatibility with existing notification function calls.
+ * Main send message function - sends to all owner/admin webhooks for the company
  * 
  * @param message - The formatted message to send
- * @param companyId - Optional (not used for webhook methods, kept for compatibility)
+ * @param companyId - Company ID to find owners/admins
  */
 async function sendMessage(message: string, companyId?: string): Promise<void> {
-  const discordUrl = getDiscordWebhookUrl();
-  const whopUrl = getWhopWebhookUrl();
-  
-  // Build array of webhook promises to send to
-  const webhookPromises: Promise<void>[] = [];
-  
-  if (discordUrl) {
-    webhookPromises.push(sendWebhookMessage(message, discordUrl));
-  }
-  
-  if (whopUrl) {
-    webhookPromises.push(sendWebhookMessage(message, whopUrl));
-  }
-  
-  // Send to all configured webhooks in parallel
-  // Use Promise.allSettled so if one fails, the other still works
-  if (webhookPromises.length > 0) {
-    await Promise.allSettled(webhookPromises);
+  if (!companyId) return;
+
+  try {
+    await connectDB();
+    
+    // Find all owners and admins for this company
+    const ownersAndAdmins = await User.find({
+      companyId,
+      role: { $in: ['owner', 'admin'] },
+    })
+      .select('whopWebhookUrl discordWebhookUrl')
+      .lean();
+
+    // Build array of webhook promises to send to
+    const webhookPromises: Promise<void>[] = [];
+
+    for (const user of ownersAndAdmins) {
+      if (user.discordWebhookUrl) {
+        webhookPromises.push(sendWebhookMessage(message, user.discordWebhookUrl));
+      }
+      if (user.whopWebhookUrl) {
+        webhookPromises.push(sendWebhookMessage(message, user.whopWebhookUrl));
+      }
+    }
+
+    // Send to all configured webhooks in parallel
+    // Use Promise.allSettled so if one fails, the others still work
+    if (webhookPromises.length > 0) {
+      await Promise.allSettled(webhookPromises);
+    }
+  } catch (error) {
+    // Silently fail to prevent breaking bet operations
   }
 }
 

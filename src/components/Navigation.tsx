@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useAccess } from './AccessProvider';
 
 export default function Navigation() {
-  const { isAuthorized, loading } = useAccess();
+  const { isAuthorized, role, loading } = useAccess();
 
   return (
     <AppBar 
@@ -77,6 +77,22 @@ export default function Navigation() {
               }}
             >
               Profile
+            </Button>
+          )}
+          {!loading && role === 'owner' && (
+            <Button 
+              component={Link} 
+              href="/users"
+              sx={{
+                color: 'rgba(255, 255, 255, 0.7)',
+                fontWeight: 600,
+                '&:hover': {
+                  color: '#ffffff',
+                  background: 'rgba(99, 102, 241, 0.1)',
+                },
+              }}
+            >
+              Users
             </Button>
           )}
         </Box>
