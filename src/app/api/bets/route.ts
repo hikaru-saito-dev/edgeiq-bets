@@ -26,11 +26,51 @@ interface ParlayLine {
   overUnder?: 'Over' | 'Under';
 }
 
+/**
+ * Parse parlay summary into individual bet lines
+ * Supports formats like:
+ * - "Lakers -3.5" or "Lakers +3.5" (Spread)
+ * - "Lakers ML" (Moneyline)
+ * - "Lakers O 115.5" or "Lakers Over 115.5" (Total Over)
+ * - "Lakers U 115.5" or "Lakers Under 115.5" (Total Under)
+ * - "Over 115.5" or "Under 115.5" (Total without team name)
+ */
 function parseParlaySummary(summary: string): ParlayLine[] {
   const lines: ParlayLine[] = [];
-  const summaryLines = summary.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+  // Split by newlines, also handle "+" separator (e.g., "Lakers ML + Celtics -5.5")
+  const summaryLines = summary
+    .split(/[\n+]/)
+    .map(l => l.trim())
+    .filter(l => l.length > 0);
   
   for (const line of summaryLines) {
+    // Match patterns like "Over 115.5" or "Under 115.5" (Total without team name)
+    const totalOnlyOverMatch = line.match(/^(?:O|Over)\s+(\d+\.?\d*)$/i);
+    if (totalOnlyOverMatch) {
+      const lineNum = parseFloat(totalOnlyOverMatch[1]);
+      if (!isNaN(lineNum)) {
+        lines.push({
+          marketType: 'Total',
+          line: lineNum,
+          overUnder: 'Over',
+        });
+        continue;
+      }
+    }
+    
+    const totalOnlyUnderMatch = line.match(/^(?:U|Under)\s+(\d+\.?\d*)$/i);
+    if (totalOnlyUnderMatch) {
+      const lineNum = parseFloat(totalOnlyUnderMatch[1]);
+      if (!isNaN(lineNum)) {
+        lines.push({
+          marketType: 'Total',
+          line: lineNum,
+          overUnder: 'Under',
+        });
+        continue;
+      }
+    }
+    
     // Match patterns like "Team -3.5", "Team +3.5" (Spread)
     const spreadMatch = line.match(/^(.+?)\s+([+-]?\d+\.?\d*)$/);
     if (spreadMatch) {

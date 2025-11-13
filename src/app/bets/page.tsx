@@ -61,13 +61,19 @@ export default function BetsPage() {
   }, [search]);
   useEffect(() => {
     const fetchSettle = async () => {
-    const response = await fetch('/api/bets/settle-all');
-    if (!response.ok) throw new Error('Failed to settle bets');
-    const data = await response.json();
-    console.log(data);
-  };
-  fetchSettle();
-  fetchBets();
+      try {
+        const response = await fetch('/api/bets/settle-all', {
+          method: 'POST',
+        });
+        if (!response.ok) throw new Error('Failed to settle bets');
+        const data = await response.json();
+        console.log(data);
+      } catch (error) {
+        console.error('Error settling bets:', error);
+      }
+    };
+    fetchSettle();
+    fetchBets();
   }, []);
 
   const fetchBets = async () => {
