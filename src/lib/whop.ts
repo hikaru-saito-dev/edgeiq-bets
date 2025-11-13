@@ -127,42 +127,20 @@ type WhopSdkShape = {
 let cachedSdk: WhopSdkShape | null = null;
 
 export function getWhopSdk(companyId?: string): WhopSdkShape {
-  // If companyId is provided, create a new SDK instance with company context
-  // Otherwise, return cached SDK or create a new one
   const apiKey = process.env.WHOP_API_KEY;
   const appId = process.env.NEXT_PUBLIC_WHOP_APP_ID;
   const agentUserId = process.env.NEXT_PUBLIC_WHOP_AGENT_USER_ID;
+  const defaultCompanyId = process.env.NEXT_PUBLIC_WHOP_COMPANY_ID;
   
   if (!apiKey || !appId) {
     throw new Error('Missing WHOP credentials');
   }
 
-  // If companyId is provided, create SDK with company context (don't cache)
-  if (companyId) {
-    const options: {
-      appId: string;
-      appApiKey: string;
-      onBehalfOfUserId?: string;
-      companyId?: string;
-    } = {
-      appId,
-      appApiKey: apiKey,
-    };
-    
-    if (agentUserId) {
-      options.onBehalfOfUserId = agentUserId;
-    }
-    if (companyId) {
-      options.companyId = companyId;
-    }
-    
-    return WhopServerSdk(options) as unknown as WhopSdkShape;
-  }
+  // Use provided companyId or fall back to default from env
+  const finalCompanyId = companyId || defaultCompanyId;
 
-  // Cache base SDK (without company context)
-  if (cachedSdk) return cachedSdk;
-  
-  const options: {
+  // Build base options (without companyId)
+  const baseOptions: {
     appId: string;
     appApiKey: string;
     onBehalfOfUserId?: string;
@@ -172,12 +150,22 @@ export function getWhopSdk(companyId?: string): WhopSdkShape {
   };
   
   if (agentUserId) {
-    options.onBehalfOfUserId = agentUserId;
+    baseOptions.onBehalfOfUserId = agentUserId;
   }
+
+  // Initialize base SDK
+  const baseSdk = WhopServerSdk(baseOptions) as unknown as WhopSdkShape;
+
+  // If companyId is provided, use withCompany() method for proper company context
+  if (finalCompanyId) {
+    return baseSdk.withCompany(finalCompanyId);
+  }
+
+  // Cache base SDK if no companyId
+  if (cachedSdk) return cachedSdk;
   
-  const sdk = WhopServerSdk(options) as unknown as WhopSdkShape;
-  cachedSdk = sdk;
-  return sdk;
+  cachedSdk = baseSdk;
+  return baseSdk;
 }
 
 /**

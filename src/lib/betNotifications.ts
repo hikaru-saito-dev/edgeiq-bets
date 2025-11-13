@@ -1,25 +1,92 @@
-import { getWhopSdk } from './whop';
 import type { IBet } from '@/models/Bet';
 import type { IUser } from '@/models/User';
 
-const EXPERIENCE_ID_ENV_KEY = 'WHOP_BET_NOTIFICATIONS_EXPERIENCE_ID';
+// Environment variables
+const DISCORD_WEBHOOK_URL_ENV_KEY = 'DISCORD_WEBHOOK_URL';
+const WHOP_WEBHOOK_URL_ENV_KEY = 'WHOP_WEBHOOK_URL';
 
-function getExperienceId(): string | null {
-  return process.env[EXPERIENCE_ID_ENV_KEY] || null;
+function getDiscordWebhookUrl(): string | null {
+  return process.env[DISCORD_WEBHOOK_URL_ENV_KEY] || null;
 }
 
-async function sendMessage(message: string, companyId?: string): Promise<void> {
-  const experienceId = getExperienceId();
-  if (!experienceId || !message.trim() || !companyId) return;
+function getWhopWebhookUrl(): string | null {
+  return process.env[WHOP_WEBHOOK_URL_ENV_KEY] || null;
+}
+
+/**
+ * Send message via webhook (works for both Discord and Whop webhooks)
+ * Whop chat webhooks are compatible with Discord's webhook API
+ * 
+ * @param message - The message content to send
+ * @param webhookUrl - The webhook URL (Discord or Whop)
+ * @returns Promise that resolves when message is sent (or fails silently)
+ */
+async function sendWebhookMessage(message: string, webhookUrl: string): Promise<void> {
+  if (!webhookUrl || !message.trim()) {
+    return;
+  }
 
   try {
-    const whopSdk = getWhopSdk(companyId);
-    await whopSdk.messages.sendMessageToChat({
-      experienceId,
-      message,
+    // Both Discord and Whop webhooks support the same format
+    // Discord/Whop support **bold**, *italic*, etc.
+    // No need to modify the message - webhooks handle markdown natively
+    const payload = {
+      content: message,
+    };
+
+    const response = await fetch(webhookUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload),
     });
-  } catch {
-    // Silently fail - don't interrupt bet operations
+
+    // Discord returns 200/204, Whop returns 200/204 for success
+    // 204 No Content is also a success response
+    if (response.ok || response.status === 204) {
+      // Success - message sent
+      return;
+    }
+    
+    // Non-2xx response - log but don't throw (don't interrupt bet operations)
+    // Silently fail to prevent breaking bet creation/updates
+  } catch (error) {
+    // Network error or exception - silently fail
+    // Don't log to avoid cluttering logs with webhook failures
+  }
+}
+
+
+/**
+ * Main send message function - sends to both Discord and Whop webhooks simultaneously
+ * if both are configured. If only one is configured, sends to that one only.
+ * 
+ * Webhook methods don't require companyId, but it's kept in the signature
+ * for compatibility with existing notification function calls.
+ * 
+ * @param message - The formatted message to send
+ * @param companyId - Optional (not used for webhook methods, kept for compatibility)
+ */
+async function sendMessage(message: string, companyId?: string): Promise<void> {
+  const discordUrl = getDiscordWebhookUrl();
+  const whopUrl = getWhopWebhookUrl();
+  
+  // Build array of webhook promises to send to
+  const webhookPromises: Promise<void>[] = [];
+  
+  if (discordUrl) {
+    webhookPromises.push(sendWebhookMessage(message, discordUrl));
+  }
+  
+  if (whopUrl) {
+    webhookPromises.push(sendWebhookMessage(message, whopUrl));
+  }
+  
+  // Send to all configured webhooks in parallel
+  // Use Promise.allSettled so if one fails, the other still works
+  if (webhookPromises.length > 0) {
+    await Promise.allSettled(webhookPromises);
   }
 }
 
