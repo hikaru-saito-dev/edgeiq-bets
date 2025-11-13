@@ -16,9 +16,29 @@ import {
   Typography,
   Skeleton,
   Avatar,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  IconButton,
+  Divider,
 } from '@mui/material';
 import LocalFireDepartmentIcon from '@mui/icons-material/LocalFireDepartment';
+import CloseIcon from '@mui/icons-material/Close';
+import ContentCopyIcon from '@mui/icons-material/ContentCopy';
+import LaunchIcon from '@mui/icons-material/Launch';
 import { useState, useEffect } from 'react';
+import { useToast } from './ToastProvider';
+
+interface MembershipPlan {
+  id: string;
+  name: string;
+  description?: string;
+  price: string;
+  url: string;
+  affiliateLink: string | null;
+  isPremium: boolean;
+}
 
 interface LeaderboardEntry {
   rank: number;
@@ -26,7 +46,7 @@ interface LeaderboardEntry {
   companyName: string;
   whopName?: string;
   whopAvatarUrl?: string;
-  membershipAffiliateLink?: string | null;
+  membershipPlans?: MembershipPlan[];
   winRate: number;
   roi: number;
   plays: number;
@@ -36,15 +56,33 @@ interface LeaderboardEntry {
 }
 
 export default function LeaderboardTable() {
+  const toast = useToast();
   const [range, setRange] = useState<'all' | '30d' | '7d'>('all');
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
   const [loading, setLoading] = useState(true);
+  const [selectedCompany, setSelectedCompany] = useState<LeaderboardEntry | null>(null);
+  const [membershipModalOpen, setMembershipModalOpen] = useState(false);
 
   // pagination + search
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [totalPages, setTotalPages] = useState(1);
   const [search, setSearch] = useState('');
+
+  const handleViewMembership = (entry: LeaderboardEntry) => {
+    setSelectedCompany(entry);
+    setMembershipModalOpen(true);
+  };
+
+  const handleCloseModal = () => {
+    setMembershipModalOpen(false);
+    setSelectedCompany(null);
+  };
+
+  const copyAffiliateLink = (link: string) => {
+    navigator.clipboard.writeText(link);
+    toast.showSuccess('Affiliate link copied to clipboard!');
+  };
 
   const fetchLeaderboard = async () => {
     setLoading(true);
@@ -208,13 +246,11 @@ export default function LeaderboardTable() {
                     </TableCell>
                     <TableCell align="right">{entry.longestStreak}</TableCell>
                     <TableCell align="center">
-                      {entry.membershipAffiliateLink ? (
+                      {entry.membershipPlans && entry.membershipPlans.length > 0 ? (
                         <Button
                           variant="contained"
                           size="small"
-                          href={entry.membershipAffiliateLink}
-                          target="_blank"
-                          rel="noopener noreferrer"
+                          onClick={() => handleViewMembership(entry)}
                           sx={{
                             background: 'linear-gradient(135deg, #6366f1, #ec4899)',
                             color: 'white',
@@ -243,6 +279,196 @@ export default function LeaderboardTable() {
           </Box>
         </TableContainer>
       )}
+
+      {/* Membership Plans Modal */}
+      <Dialog
+        open={membershipModalOpen}
+        onClose={handleCloseModal}
+        maxWidth="md"
+        fullWidth
+        PaperProps={{
+          sx: {
+            background: 'linear-gradient(135deg, rgba(15, 15, 35, 0.95), rgba(30, 30, 60, 0.95))',
+            backdropFilter: 'blur(20px)',
+            border: '1px solid rgba(99, 102, 241, 0.3)',
+            borderRadius: 3,
+          },
+        }}
+      >
+        <DialogTitle sx={{ color: '#ffffff', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <Box display="flex" alignItems="center" gap={2}>
+            {selectedCompany?.whopAvatarUrl && (
+              <Avatar src={selectedCompany.whopAvatarUrl} sx={{ width: 40, height: 40 }}>
+                {selectedCompany.companyName.charAt(0).toUpperCase()}
+              </Avatar>
+            )}
+            <Box>
+              <Typography variant="h6" sx={{ color: '#ffffff', fontWeight: 600 }}>
+                {selectedCompany?.companyName}
+              </Typography>
+              <Typography variant="caption" sx={{ color: '#a1a1aa' }}>
+                Membership Plans
+              </Typography>
+            </Box>
+          </Box>
+          <IconButton
+            onClick={handleCloseModal}
+            sx={{ color: '#a1a1aa', '&:hover': { color: '#ffffff' } }}
+          >
+            <CloseIcon />
+          </IconButton>
+        </DialogTitle>
+        <Divider sx={{ borderColor: 'rgba(99, 102, 241, 0.3)' }} />
+        <DialogContent sx={{ mt: 2 }}>
+          {selectedCompany?.membershipPlans && selectedCompany.membershipPlans.length > 0 ? (
+            <Box display="flex" flexDirection="column" gap={3}>
+              {selectedCompany.membershipPlans.map((plan) => (
+                <Paper
+                  key={plan.id}
+                  sx={{
+                    p: 3,
+                    background: 'linear-gradient(135deg, rgba(15, 15, 35, 0.8), rgba(30, 30, 60, 0.6))',
+                    border: '1px solid rgba(99, 102, 241, 0.3)',
+                    borderRadius: 2,
+                    transition: 'all 0.3s ease',
+                    '&:hover': {
+                      borderColor: 'rgba(99, 102, 241, 0.5)',
+                      boxShadow: '0 4px 20px rgba(99, 102, 241, 0.2)',
+                    },
+                  }}
+                >
+                  <Box display="flex" justifyContent="space-between" alignItems="flex-start" mb={2}>
+                    <Box flex={1}>
+                      <Box display="flex" alignItems="center" gap={1} mb={1}>
+                        <Typography variant="h6" sx={{ color: '#ffffff', fontWeight: 600 }}>
+                          {plan.name}
+                        </Typography>
+                        {plan.isPremium && (
+                          <Chip
+                            label="Premium"
+                            size="small"
+                            sx={{
+                              background: 'rgba(236, 72, 153, 0.2)',
+                              color: '#ec4899',
+                              border: '1px solid rgba(236, 72, 153, 0.3)',
+                            }}
+                          />
+                        )}
+                      </Box>
+                      {plan.description && (
+                        <Typography variant="body2" sx={{ color: '#a1a1aa', mb: 1 }}>
+                          {plan.description}
+                        </Typography>
+                      )}
+                      <Typography variant="body2" sx={{ color: '#6366f1', fontWeight: 600 }}>
+                        {plan.price}
+                      </Typography>
+                    </Box>
+                  </Box>
+                  
+                  {plan.affiliateLink && (
+                    <Box
+                      mt={2}
+                      p={2}
+                      sx={{
+                        background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.15), rgba(236, 72, 153, 0.1))',
+                        borderRadius: 2,
+                        border: '1px solid rgba(99, 102, 241, 0.3)',
+                      }}
+                    >
+                      <Box display="flex" justifyContent="space-between" alignItems="flex-start" gap={2}>
+                        <Box flex={1} minWidth={0}>
+                          <Typography
+                            variant="caption"
+                            sx={{
+                              color: '#a1a1aa',
+                              display: 'block',
+                              mb: 1,
+                              fontWeight: 500,
+                              textTransform: 'uppercase',
+                              letterSpacing: '0.5px',
+                            }}
+                          >
+                            Affiliate Link
+                          </Typography>
+                          <Typography
+                            variant="body2"
+                            sx={{
+                              color: '#6366f1',
+                              wordBreak: 'break-all',
+                              fontFamily: 'monospace',
+                              fontSize: '0.875rem',
+                              background: 'rgba(0, 0, 0, 0.2)',
+                              padding: '8px 12px',
+                              borderRadius: 1,
+                              border: '1px solid rgba(99, 102, 241, 0.2)',
+                            }}
+                          >
+                            {plan.affiliateLink}
+                          </Typography>
+                        </Box>
+                        <Box display="flex" gap={1}>
+                          <IconButton
+                            onClick={() => copyAffiliateLink(plan.affiliateLink!)}
+                            size="small"
+                            sx={{
+                              color: '#6366f1',
+                              background: 'rgba(99, 102, 241, 0.1)',
+                              border: '1px solid rgba(99, 102, 241, 0.3)',
+                              '&:hover': {
+                                background: 'rgba(99, 102, 241, 0.2)',
+                                borderColor: '#6366f1',
+                              },
+                            }}
+                            title="Copy affiliate link"
+                          >
+                            <ContentCopyIcon fontSize="small" />
+                          </IconButton>
+                          <IconButton
+                            onClick={() => window.open(plan.affiliateLink!, '_blank', 'noopener,noreferrer')}
+                            size="small"
+                            sx={{
+                              color: '#6366f1',
+                              background: 'rgba(99, 102, 241, 0.1)',
+                              border: '1px solid rgba(99, 102, 241, 0.3)',
+                              '&:hover': {
+                                background: 'rgba(99, 102, 241, 0.2)',
+                                borderColor: '#6366f1',
+                              },
+                            }}
+                            title="Open in new tab"
+                          >
+                            <LaunchIcon fontSize="small" />
+                          </IconButton>
+                        </Box>
+                      </Box>
+                    </Box>
+                  )}
+                </Paper>
+              ))}
+            </Box>
+          ) : (
+            <Box textAlign="center" py={4}>
+              <Typography variant="body1" sx={{ color: '#a1a1aa' }}>
+                No membership plans available
+              </Typography>
+            </Box>
+          )}
+        </DialogContent>
+        <DialogActions sx={{ p: 2, borderTop: '1px solid rgba(99, 102, 241, 0.3)' }}>
+          <Button
+            onClick={handleCloseModal}
+            sx={{
+              color: '#ffffff',
+              '&:hover': {
+                background: 'rgba(99, 102, 241, 0.1)',
+              },
+            }}
+          >
+            Close
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 }

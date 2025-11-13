@@ -64,28 +64,36 @@ export async function GET(request: NextRequest) {
           role: { $in: ['owner', 'admin'] },
         }).lean();
 
-        // Get owner for membership link
+        // Get owner for membership plans
         const ownerRaw = companyUsers.find((u: unknown) => {
           const user = u as { role?: string };
           return user.role === 'owner';
         });
         const owner = ownerRaw as unknown as IUser;
-        const ownerUsername = owner?.whopUsername || owner?.whopDisplayName || 'username';
+        const ownerUsername = owner?.whopUsername || owner?.whopDisplayName || 'woodiee';
         
-        // Get primary membership plan affiliate link (first premium plan, or first plan)
-        let membershipAffiliateLink: string | null = null;
-        if (owner?.membershipPlans && owner.membershipPlans.length > 0) {
-          const premiumPlan = owner.membershipPlans.find(p => p.isPremium) || owner.membershipPlans[0];
-          if (premiumPlan?.url) {
+        // Get all membership plans with affiliate links
+        const membershipPlans = (owner?.membershipPlans || []).map((plan) => {
+          let affiliateLink: string | null = null;
+          if (plan.url) {
             try {
-              const url = new URL(premiumPlan.url);
-              url.searchParams.set('a', ownerUsername);
-              membershipAffiliateLink = url.toString();
+              const url = new URL(plan.url);
+              url.searchParams.set('a', 'woodiee');
+              affiliateLink = url.toString();
             } catch {
-              membershipAffiliateLink = `${premiumPlan.url}${premiumPlan.url.includes('?') ? '&' : '?'}a=${ownerUsername}`;
+              affiliateLink = `${plan.url}${plan.url.includes('?') ? '&' : '?'}a=woodiee`;
             }
           }
-        }
+          return {
+            id: plan.id,  
+            name: plan.name,
+            description: plan.description,
+            price: plan.price,
+            url: plan.url,
+            affiliateLink,
+            isPremium: plan.isPremium || false,
+          };
+        });
 
         // Get all bets from all users in this company
         const userIds = companyUsers.map((u: unknown) => (u as IUser)._id);
@@ -144,7 +152,7 @@ export async function GET(request: NextRequest) {
           companyName: companyDisplayName,
           whopName: displayUser?.whopName,
           whopAvatarUrl: displayUser?.whopAvatarUrl,
-          membershipAffiliateLink,
+          membershipPlans,
           winRate,
           roi,
           plays: settledBets.length,
