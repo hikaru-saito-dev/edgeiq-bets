@@ -232,6 +232,8 @@ export default function CreateBetForm({ open, onClose, onSuccess }: CreateBetFor
   const [playerName, setPlayerName] = useState('');
   const [statType, setStatType] = useState('');
   const [parlaySummary, setParlaySummary] = useState('');
+  const [isParlay, setIsParlay] = useState(false);
+  const [parlayLegs, setParlayLegs] = useState<string[]>([]);
   
   const [oddsFormat, setOddsFormat] = useState<OddsFormat>('american');
   const [oddsValue, setOddsValue] = useState<number | ''>('');
@@ -381,26 +383,30 @@ export default function CreateBetForm({ open, onClose, onSuccess }: CreateBetFor
       return;
     }
 
-    // Market-specific validation
-    if (marketType === 'ML' && !selection) {
-      toast.showError('Please select a team');
-      return;
-    }
-    if (marketType === 'Spread' && (!selection || typeof line !== 'number')) {
-      toast.showError('Please select a team and enter the line');
-      return;
-    }
-    if (marketType === 'Total' && (typeof line !== 'number' || !overUnder)) {
-      toast.showError('Please enter the line and select Over/Under');
-      return;
-    }
-    if (marketType === 'Player Prop' && (!playerName || !statType || typeof line !== 'number' || !overUnder)) {
-      toast.showError('Please fill in all player prop fields');
-      return;
-    }
-    if (marketType === 'Parlay' && !parlaySummary) {
-      toast.showError('Please enter parlay summary');
-      return;
+    // Validation for parlay vs single
+    if (isParlay) {
+      if (parlayLegs.length < 2) {
+        toast.showError('Parlay must have at least 2 legs');
+        return;
+      }
+    } else {
+      // Single bet validations
+      if (marketType === 'ML' && !selection) {
+        toast.showError('Please select a team');
+        return;
+      }
+      if (marketType === 'Spread' && (!selection || typeof line !== 'number')) {
+        toast.showError('Please select a team and enter the line');
+        return;
+      }
+      if (marketType === 'Total' && (typeof line !== 'number' || !overUnder)) {
+        toast.showError('Please enter the line and select Over/Under');
+        return;
+      }
+      if (marketType === 'Player Prop' && (!playerName || !statType || typeof line !== 'number' || !overUnder)) {
+        toast.showError('Please fill in all player prop fields');
+        return;
+      }
     }
 
     setSubmitting(true);
@@ -416,6 +422,26 @@ export default function CreateBetForm({ open, onClose, onSuccess }: CreateBetFor
         startTime: new Date().toISOString(),
       };
 
+      // Build market object
+      const market: Record<string, unknown> = isParlay
+        ? { marketType: 'Parlay', parlaySummary: parlayLegs.join(' + ') }
+        : { marketType };
+
+      if (!isParlay) {
+        if (marketType === 'ML') Object.assign(market, { selection });
+        if (marketType === 'Spread') Object.assign(market, { selection, line });
+        if (marketType === 'Total') Object.assign(market, { line, overUnder });
+        if (marketType === 'Player Prop') {
+          Object.assign(market, { 
+            playerName, 
+            playerId: selectedPlayer?.id,
+            statType,
+            line,
+            overUnder,
+          });
+        }
+      }
+
       const payload = {
         game: {
           provider: gameData.provider,
@@ -429,20 +455,7 @@ export default function CreateBetForm({ open, onClose, onSuccess }: CreateBetFor
           awayTeamId: gameData.awayTeamId,
           startTime: gameData.startTime,
         },
-        market: {
-          marketType,
-          ...(marketType === 'ML' && { selection }),
-          ...(marketType === 'Spread' && { selection, line }),
-          ...(marketType === 'Total' && { line, overUnder }),
-          ...(marketType === 'Player Prop' && { 
-            playerName, 
-            playerId: selectedPlayer?.id, // Store player ID for auto-settlement
-            statType, 
-            line, 
-            overUnder 
-          }),
-          ...(marketType === 'Parlay' && { parlaySummary }),
-        },
+        market,
         odds: {
           oddsFormat,
           oddsValue: oddsValue as number,
@@ -766,28 +779,51 @@ export default function CreateBetForm({ open, onClose, onSuccess }: CreateBetFor
           </Box>
         );
       
-      case 'Parlay':
-        return (
-          <TextField
-            fullWidth
-            label="Parlay Summary *"
-            value={parlaySummary}
-            onChange={(e) => setParlaySummary(e.target.value)}
-            required
-            multiline
-            rows={3}
-            placeholder="e.g., Lakers ML + Celtics -5.5 + Over 220.5"
-            sx={{
-              '& .MuiOutlinedInput-root': { color: '#ffffff' },
-              '& .MuiInputLabel-root': { color: '#a1a1aa' },
-              '& fieldset': { borderColor: 'rgba(99, 102, 241, 0.3)' },
-            }}
-          />
-        );
-      
       default:
         return null;
     }
+  };
+
+  // Format current selection into a parlay leg string
+  const formatCurrentLeg = (): string | null => {
+    if (!selectedGame) return null;
+    if (marketType === 'ML') {
+      if (!selection) return null;
+      return `${selection} ML`;
+    }
+    if (marketType === 'Spread') {
+      if (!selection || typeof line !== 'number') return null;
+      const sign = line > 0 ? '+' : '';
+      return `${selection} ${sign}${line}`;
+    }
+    if (marketType === 'Total') {
+      if (!overUnder || typeof line !== 'number') return null;
+      return `${overUnder} ${line}`;
+    }
+    if (marketType === 'Player Prop') {
+      if (!playerName || !statType || typeof line !== 'number' || !overUnder) return null;
+      return `${playerName} ${statType} ${overUnder} ${line}`;
+    }
+    return null;
+  };
+
+  const handleAddParlayLeg = () => {
+    const leg = formatCurrentLeg();
+    if (!leg) {
+      toast.showError('Please complete the current selection before adding a leg');
+      return;
+    }
+    setParlayLegs((prev) => [...prev, leg]);
+    setParlaySummary((prev) => (prev ? `${prev} + ${leg}` : leg));
+    // Reset market-specific fields for next leg
+    setSelection('');
+    setLine('');
+    setOverUnder('');
+    setPlayerName('');
+    setStatType('');
+    setSelectedPlayer(null);
+    setPlayerSearchQuery('');
+    setPlayerResults([]);
   };
 
   return (
@@ -895,6 +931,33 @@ export default function CreateBetForm({ open, onClose, onSuccess }: CreateBetFor
             <Typography variant="subtitle2" sx={{ color: '#ffffff', mb: 1, fontWeight: 600 }}>
               Market & Selection *
             </Typography>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 1 }}>
+              <Button
+                variant={isParlay ? 'contained' : 'outlined'}
+                onClick={() => {
+                  const next = !isParlay;
+                  setIsParlay(next);
+                  if (!next) {
+                    // Reset parlay-related state when turning off
+                    setParlayLegs([]);
+                    setParlaySummary('');
+                  }
+                }}
+                sx={{
+                  textTransform: 'none',
+                  ...(isParlay
+                    ? { background: 'linear-gradient(135deg, #6366f1, #ec4899)', color: '#ffffff' }
+                    : { borderColor: 'rgba(99, 102, 241, 0.3)', color: '#ffffff' }),
+                }}
+              >
+                {isParlay ? 'Parlay Enabled' : 'Enable Parlay'}
+              </Button>
+              {isParlay && (
+                <Typography variant="body2" sx={{ color: '#a1a1aa' }}>
+                  Add multiple legs. Odds and stake apply to the whole parlay.
+                </Typography>
+              )}
+            </Box>
             <FormControl fullWidth>
               <InputLabel sx={{ color: '#a1a1aa' }}>Market Type *</InputLabel>
               <Select
@@ -924,13 +987,59 @@ export default function CreateBetForm({ open, onClose, onSuccess }: CreateBetFor
                 <MenuItem value="Spread">Spread</MenuItem>
                 <MenuItem value="Total">Total (Over/Under)</MenuItem>
                 <MenuItem value="Player Prop">Player Prop</MenuItem>
-                <MenuItem value="Parlay">Parlay</MenuItem>
               </Select>
             </FormControl>
             
             <Box sx={{ mt: 2 }}>
               {renderMarketInputs()}
             </Box>
+
+            {/* Parlay builder controls */}
+            {isParlay && (
+              <Box sx={{ mt: 2, display: 'flex', flexDirection: 'column', gap: 1 }}>
+                <Box sx={{ display: 'flex', gap: 1 }}>
+                  <Button
+                    size="small"
+                    startIcon={<AddIcon />}
+                    onClick={handleAddParlayLeg}
+                    sx={{
+                      textTransform: 'none',
+                      borderColor: 'rgba(99, 102, 241, 0.3)',
+                      color: '#ffffff',
+                      border: '1px solid rgba(99, 102, 241, 0.3)',
+                    }}
+                  >
+                    Add Leg
+                  </Button>
+                  <Button
+                    size="small"
+                    onClick={() => {
+                      setParlayLegs([]);
+                      setParlaySummary('');
+                    }}
+                    sx={{ textTransform: 'none', color: '#a1a1aa' }}
+                  >
+                    Clear Legs
+                  </Button>
+                </Box>
+                {parlayLegs.length > 0 && (
+                  <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+                    {parlayLegs.map((leg, idx) => (
+                      <Chip
+                        key={`${leg}-${idx}`}
+                        label={`${idx + 1}. ${leg}`}
+                        onDelete={() => {
+                          const next = parlayLegs.filter((_, i) => i !== idx);
+                          setParlayLegs(next);
+                          setParlaySummary(next.join(' + '));
+                        }}
+                        sx={{ bgcolor: 'rgba(99, 102, 241, 0.15)', color: '#ffffff' }}
+                      />
+                    ))}
+                  </Box>
+                )}
+              </Box>
+            )}
           </Box>
 
           {/* Odds & Stake */}
