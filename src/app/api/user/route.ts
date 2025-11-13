@@ -8,17 +8,41 @@ import { z } from 'zod';
 
 export const runtime = 'nodejs';
 
+// Validate Whop product page URL (not checkout links)
+const whopProductUrlSchema = z.string().url().refine(
+  (url) => {
+    try {
+      const urlObj = new URL(url);
+      // Must be whop.com domain
+      if (!urlObj.hostname.includes('whop.com')) return false;
+      // Must not be a checkout link (checkout, pay, purchase, etc.)
+      const path = urlObj.pathname.toLowerCase();
+      const forbiddenPaths = ['/checkout', '/pay', '/purchase', '/buy', '/payment'];
+      if (forbiddenPaths.some(forbidden => path.includes(forbidden))) return false;
+      // Must not have query params that indicate checkout
+      const queryParams = urlObj.searchParams.toString().toLowerCase();
+      if (queryParams.includes('checkout') || queryParams.includes('payment')) return false;
+      return true;
+    } catch {
+      return false;
+    }
+  },
+  { message: 'Must be a valid Whop product page URL (not a checkout link)' }
+);
+
 const updateUserSchema = z.object({
   alias: z.string().min(1).max(50).optional(),
   optIn: z.boolean().optional(),
   whopName: z.string().max(100).optional(),
   whopWebhookUrl: z.union([z.string().url(), z.literal('')]).optional(),
   discordWebhookUrl: z.union([z.string().url(), z.literal('')]).optional(),
+  notifyOnSettlement: z.boolean().optional(),
   membershipPlans: z.array(z.object({
     id: z.string(),
-    name: z.string(),
-    price: z.string(),
-    url: z.string(),
+    name: z.string().min(1).max(100),
+    description: z.string().max(500).optional(),
+    price: z.string().max(50),
+    url: whopProductUrlSchema,
     isPremium: z.boolean().optional(),
   })).optional(),
 });
@@ -122,6 +146,7 @@ export async function GET() {
         whopAvatarUrl: user.whopAvatarUrl,
         whopWebhookUrl: user.whopWebhookUrl,
         discordWebhookUrl: user.discordWebhookUrl,
+        notifyOnSettlement: user.notifyOnSettlement ?? false,
         membershipPlans: user.membershipPlans || [],
       },
       stats,
@@ -212,6 +237,9 @@ export async function PATCH(request: NextRequest) {
       }
       if (validated.discordWebhookUrl !== undefined) {
         user.discordWebhookUrl = validated.discordWebhookUrl || undefined;
+      }
+      if (validated.notifyOnSettlement !== undefined) {
+        user.notifyOnSettlement = validated.notifyOnSettlement;
       }
       if (validated.membershipPlans !== undefined) {
         user.membershipPlans = validated.membershipPlans as MembershipPlan[];

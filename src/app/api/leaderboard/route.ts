@@ -21,43 +21,79 @@ export async function GET(request: NextRequest) {
     const pageSize = Math.min(100, Math.max(1, parseInt(searchParams.get('pageSize') || '10', 10)));
     const search = (searchParams.get('search') || '').trim();
 
-    const query: Record<string, unknown> = { 
+    // Get all unique companyIds from owners/admins who opted in
+    const userQuery: Record<string, unknown> = { 
       optIn: true,
       role: { $in: ['owner', 'admin'] },
     };
     if (companyFilter) {
-      query.companyId = companyFilter;
+      userQuery.companyId = companyFilter;
     } else if (companyId) {
-      query.companyId = companyId;
+      userQuery.companyId = companyId;
     }
 
+    // Get all companies with owners/admins
+    const companies = await User.distinct('companyId', userQuery);
+    
+    // Filter companies by search if provided
+    let filteredCompanies = companies;
     if (search) {
       const regex = new RegExp(search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
-      Object.assign(query, {
+      const matchingUsers = await User.find({
+        ...userQuery,
         $or: [
+          { whopUsername: regex },
           { alias: regex },
           { whopDisplayName: regex },
-          { whopUsername: regex },
         ],
-      });
+      }).select('companyId').lean();
+      const matchingCompanyIds = [...new Set(matchingUsers.map((u: unknown) => (u as { companyId: string }).companyId))];
+      filteredCompanies = companies.filter((cid) => matchingCompanyIds.includes(cid));
     }
 
-    const total = await User.countDocuments(query);
+    const total = filteredCompanies.length;
+    const paginatedCompanies = filteredCompanies.slice((page - 1) * pageSize, page * pageSize);
 
-    // Fetch page of users only
-    const users = await User.find(query)
-      .sort({ createdAt: -1 })
-      .skip((page - 1) * pageSize)
-      .limit(pageSize)
-      .lean();
-
+    // Aggregate stats per company
     const leaderboard = await Promise.all(
-      users.map(async (userRaw) => {
-        const user = userRaw as unknown as IUser;
-        const betsRaw = await Bet.find({ userId: user._id }).lean();
-        const bets = filterBetsByDateRange(betsRaw as unknown as IBet[], range);
+      paginatedCompanies.map(async (companyIdValue) => {
+        // Get all users in this company (owners/admins who opted in)
+        const companyUsers = await User.find({
+          companyId: companyIdValue,
+          optIn: true,
+          role: { $in: ['owner', 'admin'] },
+        }).lean();
 
-        const settledBets = bets.filter((bet) => bet.result !== 'pending');
+        // Get owner for membership link
+        const ownerRaw = companyUsers.find((u: unknown) => {
+          const user = u as { role?: string };
+          return user.role === 'owner';
+        });
+        const owner = ownerRaw as unknown as IUser;
+        const ownerUsername = owner?.whopUsername || owner?.whopDisplayName || 'username';
+        
+        // Get primary membership plan affiliate link (first premium plan, or first plan)
+        let membershipAffiliateLink: string | null = null;
+        if (owner?.membershipPlans && owner.membershipPlans.length > 0) {
+          const premiumPlan = owner.membershipPlans.find(p => p.isPremium) || owner.membershipPlans[0];
+          if (premiumPlan?.url) {
+            try {
+              const url = new URL(premiumPlan.url);
+              url.searchParams.set('a', ownerUsername);
+              membershipAffiliateLink = url.toString();
+            } catch {
+              membershipAffiliateLink = `${premiumPlan.url}${premiumPlan.url.includes('?') ? '&' : '?'}a=${ownerUsername}`;
+            }
+          }
+        }
+
+        // Get all bets from all users in this company
+        const userIds = companyUsers.map((u: unknown) => (u as IUser)._id);
+        const allBetsRaw = await Bet.find({ userId: { $in: userIds } }).lean();
+        const allBets = filterBetsByDateRange(allBetsRaw as unknown as IBet[], range);
+
+        // Aggregate stats
+        const settledBets = allBets.filter((bet) => bet.result !== 'pending');
         const actionableBets = settledBets.filter(
           (bet) => bet.result === 'win' || bet.result === 'loss'
         );
@@ -80,6 +116,8 @@ export async function GET(request: NextRequest) {
         const roi = totalWagered > 0 
           ? Math.round((unitsPL / totalWagered) * 10000) / 100 
           : 0;
+
+        // Calculate streaks across all users
         const sortedBets = [...settledBets].sort(
           (a, b) => a.createdAt.getTime() - b.createdAt.getTime()
         );
@@ -97,24 +135,27 @@ export async function GET(request: NextRequest) {
           }
         }
 
+        // Get company display info from owner or first admin
+        const displayUser = owner || companyUsers[0] as unknown as IUser;
+        const companyDisplayName = displayUser?.whopName || displayUser?.whopDisplayName || displayUser?.alias || `Company ${companyIdValue.slice(0, 8)}`;
+
         return {
-          userId: String(user._id),
-          alias: user.alias || user.whopDisplayName || user.whopUsername || `User ${user.whopUserId.slice(0, 8)}`,
-          whopName: user.whopName || user.alias,
-          whopDisplayName: user.whopDisplayName,
-          whopUsername: user.whopUsername,
-          whopAvatarUrl: user.whopAvatarUrl,
-          companyId: user.companyId,
+          companyId: companyIdValue,
+          companyName: companyDisplayName,
+          whopName: displayUser?.whopName,
+          whopAvatarUrl: displayUser?.whopAvatarUrl,
+          membershipAffiliateLink,
           winRate,
           roi,
           plays: settledBets.length,
           currentStreak,
           longestStreak,
+          memberCount: companyUsers.length,
         };
       })
     );
 
-    // Sort page locally by ROI then Win% (page-sized only)
+    // Sort by ROI then Win% (page-sized only)
     leaderboard.sort((a, b) => {
       if (b.roi !== a.roi) return b.roi - a.roi;
       return b.winRate - a.winRate;

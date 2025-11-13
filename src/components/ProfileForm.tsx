@@ -14,7 +14,13 @@ import {
   CircularProgress,
   Skeleton,
   Avatar,
+  IconButton,
+  Chip,
+  Divider,
 } from '@mui/material';
+import AddIcon from '@mui/icons-material/Add';
+import DeleteIcon from '@mui/icons-material/Delete';
+import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import LocalFireDepartmentIcon from '@mui/icons-material/LocalFireDepartment';
 import { useToast } from './ToastProvider';
 import { motion } from 'framer-motion';
@@ -70,9 +76,11 @@ interface UserData {
   whopAvatarUrl?: string;
   whopWebhookUrl?: string;
   discordWebhookUrl?: string;
+  notifyOnSettlement?: boolean;
   membershipPlans?: Array<{
     id: string;
     name: string;
+    description?: string;
     price: string;
     url: string;
     isPremium?: boolean;
@@ -85,6 +93,15 @@ export default function ProfileForm() {
   const [optIn, setOptIn] = useState(true);
   const [whopWebhookUrl, setWhopWebhookUrl] = useState('');
   const [discordWebhookUrl, setDiscordWebhookUrl] = useState('');
+  const [notifyOnSettlement, setNotifyOnSettlement] = useState(false);
+  const [membershipPlans, setMembershipPlans] = useState<Array<{
+    id: string;
+    name: string;
+    description?: string;
+    price: string;
+    url: string;
+    isPremium?: boolean;
+  }>>([]);
   const [userData, setUserData] = useState<UserData | null>(null);
   const [stats, setStats] = useState<UserStats | null>(null);
   const [bets, setBets] = useState<Bet[]>([]);
@@ -121,6 +138,8 @@ export default function ProfileForm() {
       setOptIn(profileData.user.optIn);
       setWhopWebhookUrl(profileData.user.whopWebhookUrl || '');
       setDiscordWebhookUrl(profileData.user.discordWebhookUrl || '');
+      setNotifyOnSettlement(profileData.user.notifyOnSettlement ?? false);
+      setMembershipPlans(profileData.user.membershipPlans || []);
       setStats(profileData.stats);
       setBets(betsData.bets || []);
     } catch (error) {
@@ -130,10 +149,57 @@ export default function ProfileForm() {
     }
   };
 
+  // Generate affiliate link by appending ?a={username} to base URL
+  const generateAffiliateLink = (baseUrl: string, username: string): string => {
+    try {
+      const url = new URL(baseUrl);
+      url.searchParams.set('a', username);
+      return url.toString();
+    } catch {
+      return `${baseUrl}${baseUrl.includes('?') ? '&' : '?'}a=${username}`;
+    }
+  };
+
+  const handleAddMembershipPlan = () => {
+    setMembershipPlans([
+      ...membershipPlans,
+      {
+        id: `plan_${Date.now()}`,
+        name: '',
+        description: '',
+        price: '',
+        url: '',
+        isPremium: false,
+      },
+    ]);
+  };
+
+  const handleRemoveMembershipPlan = (id: string) => {
+    setMembershipPlans(membershipPlans.filter(plan => plan.id !== id));
+  };
+
+  const handleMembershipPlanChange = (id: string, field: string, value: string | boolean) => {
+    setMembershipPlans(membershipPlans.map(plan => 
+      plan.id === id ? { ...plan, [field]: value } : plan
+    ));
+  };
+
+  const copyAffiliateLink = (baseUrl: string) => {
+    const username = userData?.whopUsername || userData?.whopDisplayName || 'username';
+    const affiliateLink = generateAffiliateLink(baseUrl, username);
+    navigator.clipboard.writeText(affiliateLink);
+    toast.showSuccess('Affiliate link copied to clipboard!');
+  };
+
   const handleSave = async () => {
     if (!isAuthorized) return;
     setSaving(true);
     try {
+      // Validate membership plans
+      const validPlans = membershipPlans.filter(plan => 
+        plan.name.trim() && plan.url.trim() && plan.price.trim()
+      );
+
       const response = await fetch('/api/user', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
@@ -142,6 +208,8 @@ export default function ProfileForm() {
           optIn,
           whopWebhookUrl: whopWebhookUrl || undefined,
           discordWebhookUrl: discordWebhookUrl || undefined,
+          notifyOnSettlement,
+          membershipPlans: validPlans,
         }),
       });
 
@@ -428,6 +496,254 @@ export default function ProfileForm() {
             },
           }}
         />
+        <FormControlLabel
+          control={
+            <Switch
+              checked={notifyOnSettlement}
+              onChange={(e) => setNotifyOnSettlement(e.target.checked)}
+              sx={{
+                '& .MuiSwitch-switchBase.Mui-checked': {
+                  color: '#6366f1',
+                },
+                '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': {
+                  backgroundColor: '#6366f1',
+                },
+              }}
+            />
+          }
+          label={
+            <Box>
+              <Typography variant="body2" sx={{ color: '#ffffff', fontWeight: 500 }}>
+                Notify on Bet Settlement
+              </Typography>
+              <Typography variant="caption" sx={{ color: '#a1a1aa', display: 'block' }}>
+                Receive notifications when bets are settled (win/loss, units won/lost, and total units)
+              </Typography>
+            </Box>
+          }
+          sx={{ mt: 2, color: '#ffffff' }}
+        />
+
+        {/* Membership Plans Section */}
+        <Divider sx={{ my: 3, borderColor: 'rgba(99, 102, 241, 0.3)' }} />
+        <Typography variant="h6" sx={{ color: '#ffffff', mb: 2, fontWeight: 600 }}>
+          Membership Plans
+        </Typography>
+        <Typography variant="body2" sx={{ color: '#a1a1aa', mb: 2 }}>
+          Add your Whop product page URLs. Affiliate links will be automatically generated by appending <code style={{ background: 'rgba(99, 102, 241, 0.2)', padding: '2px 6px', borderRadius: '4px' }}>?a=username</code> to each link.
+        </Typography>
+
+        {membershipPlans.map((plan, index) => (
+          <Paper
+            key={plan.id}
+            sx={{
+              p: 2,
+              mb: 2,
+              background: 'rgba(15, 15, 35, 0.5)',
+              border: '1px solid rgba(99, 102, 241, 0.3)',
+              borderRadius: 2,
+            }}
+          >
+            <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
+              <Typography variant="subtitle1" sx={{ color: '#ffffff', fontWeight: 600 }}>
+                Plan {index + 1}
+              </Typography>
+              <IconButton
+                onClick={() => handleRemoveMembershipPlan(plan.id)}
+                size="small"
+                sx={{ color: '#ef4444' }}
+              >
+                <DeleteIcon />
+              </IconButton>
+            </Box>
+
+            <TextField
+              fullWidth
+              label="Plan Name *"
+              value={plan.name}
+              onChange={(e) => handleMembershipPlanChange(plan.id, 'name', e.target.value)}
+              placeholder="e.g., TNL Premium"
+              margin="normal"
+              size="small"
+              required
+              sx={{
+                '& .MuiOutlinedInput-root': {
+                  color: '#ffffff',
+                  '& fieldset': {
+                    borderColor: 'rgba(99, 102, 241, 0.3)',
+                  },
+                  '&:hover fieldset': {
+                    borderColor: 'rgba(99, 102, 241, 0.5)',
+                  },
+                  '&.Mui-focused fieldset': {
+                    borderColor: '#6366f1',
+                  },
+                },
+                '& .MuiInputLabel-root': {
+                  color: '#a1a1aa',
+                },
+              }}
+            />
+
+            <TextField
+              fullWidth
+              label="Description (optional)"
+              value={plan.description || ''}
+              onChange={(e) => handleMembershipPlanChange(plan.id, 'description', e.target.value)}
+              placeholder="Brief description of this membership plan"
+              margin="normal"
+              size="small"
+              multiline
+              rows={2}
+              sx={{
+                '& .MuiOutlinedInput-root': {
+                  color: '#ffffff',
+                  '& fieldset': {
+                    borderColor: 'rgba(99, 102, 241, 0.3)',
+                  },
+                  '&:hover fieldset': {
+                    borderColor: 'rgba(99, 102, 241, 0.5)',
+                  },
+                  '&.Mui-focused fieldset': {
+                    borderColor: '#6366f1',
+                  },
+                },
+                '& .MuiInputLabel-root': {
+                  color: '#a1a1aa',
+                },
+              }}
+            />
+
+            <Box display="flex" gap={2}>
+              <TextField
+                fullWidth
+                label="Price *"
+                value={plan.price}
+                onChange={(e) => handleMembershipPlanChange(plan.id, 'price', e.target.value)}
+                placeholder="e.g., $19.99/month or Free"
+                margin="normal"
+                size="small"
+                required
+                sx={{
+                  '& .MuiOutlinedInput-root': {
+                    color: '#ffffff',
+                    '& fieldset': {
+                      borderColor: 'rgba(99, 102, 241, 0.3)',
+                    },
+                    '&:hover fieldset': {
+                      borderColor: 'rgba(99, 102, 241, 0.5)',
+                    },
+                    '&.Mui-focused fieldset': {
+                      borderColor: '#6366f1',
+                    },
+                  },
+                  '& .MuiInputLabel-root': {
+                    color: '#a1a1aa',
+                  },
+                }}
+              />
+              <FormControlLabel
+                control={
+                  <Switch
+                    checked={plan.isPremium || false}
+                    onChange={(e) => handleMembershipPlanChange(plan.id, 'isPremium', e.target.checked)}
+                    sx={{
+                      '& .MuiSwitch-switchBase.Mui-checked': {
+                        color: '#6366f1',
+                      },
+                      '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': {
+                        backgroundColor: '#6366f1',
+                      },
+                    }}
+                  />
+                }
+                label="Premium"
+                sx={{ mt: 2, color: '#ffffff' }}
+              />
+            </Box>
+
+            <TextField
+              fullWidth
+              label="Whop Product Page URL *"
+              value={plan.url}
+              onChange={(e) => handleMembershipPlanChange(plan.id, 'url', e.target.value)}
+              placeholder="https://whop.com/tracknlist/tnl-premium"
+              margin="normal"
+              size="small"
+              required
+              helperText="Enter the base product page URL (not a checkout link)"
+              sx={{
+                '& .MuiOutlinedInput-root': {
+                  color: '#ffffff',
+                  '& fieldset': {
+                    borderColor: 'rgba(99, 102, 241, 0.3)',
+                  },
+                  '&:hover fieldset': {
+                    borderColor: 'rgba(99, 102, 241, 0.5)',
+                  },
+                  '&.Mui-focused fieldset': {
+                    borderColor: '#6366f1',
+                  },
+                },
+                '& .MuiInputLabel-root': {
+                  color: '#a1a1aa',
+                },
+                '& .MuiFormHelperText-root': {
+                  color: '#a1a1aa',
+                },
+              }}
+            />
+
+            {plan.url && (
+              <Box mt={1} p={1.5} sx={{ background: 'rgba(99, 102, 241, 0.1)', borderRadius: 1, border: '1px solid rgba(99, 102, 241, 0.3)' }}>
+                <Box display="flex" justifyContent="space-between" alignItems="center">
+                  <Box flex={1}>
+                    <Typography variant="caption" sx={{ color: '#a1a1aa', display: 'block', mb: 0.5 }}>
+                      Your Affiliate Link:
+                    </Typography>
+                    <Typography
+                      variant="body2"
+                      sx={{
+                        color: '#6366f1',
+                        wordBreak: 'break-all',
+                        fontFamily: 'monospace',
+                        fontSize: '0.85rem',
+                      }}
+                    >
+                      {generateAffiliateLink(plan.url, userData?.whopUsername || userData?.whopDisplayName || 'username')}
+                    </Typography>
+                  </Box>
+                  <IconButton
+                    onClick={() => copyAffiliateLink(plan.url)}
+                    size="small"
+                    sx={{ color: '#6366f1', ml: 1 }}
+                    title="Copy affiliate link"
+                  >
+                    <ContentCopyIcon fontSize="small" />
+                  </IconButton>
+                </Box>
+              </Box>
+            )}
+          </Paper>
+        ))}
+
+        <Button
+          variant="outlined"
+          startIcon={<AddIcon />}
+          onClick={handleAddMembershipPlan}
+          sx={{
+            mb: 2,
+            color: '#6366f1',
+            borderColor: 'rgba(99, 102, 241, 0.3)',
+            '&:hover': {
+              borderColor: '#6366f1',
+              background: 'rgba(99, 102, 241, 0.1)',
+            },
+          }}
+        >
+          Add Membership Plan
+        </Button>
+
         <Button
           variant="contained"
           onClick={handleSave}

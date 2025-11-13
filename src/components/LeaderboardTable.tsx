@@ -22,16 +22,17 @@ import { useState, useEffect } from 'react';
 
 interface LeaderboardEntry {
   rank: number;
-  alias: string;
-  whopDisplayName?: string;
-  whopUsername?: string;
+  companyId: string;
+  companyName: string;
+  whopName?: string;
   whopAvatarUrl?: string;
+  membershipAffiliateLink?: string | null;
   winRate: number;
   roi: number;
   plays: number;
   currentStreak: number;
   longestStreak: number;
-  // membershipUrl removed for now
+  memberCount: number;
 }
 
 export default function LeaderboardTable() {
@@ -92,7 +93,7 @@ export default function LeaderboardTable() {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             onKeyDown={(e) => { if (e.key === 'Enter') { setPage(1); fetchLeaderboard(); } }}
-            placeholder="Search users (alias/display/username)"
+            placeholder="Search companies (name)"
             style={{ background: 'transparent', border: '1px solid rgba(99,102,241,0.3)', borderRadius: 6, padding: '8px 10px', color: '#fff', width: 260 }}
           />
           <Button variant="outlined" size="small" onClick={() => { setPage(1); fetchLeaderboard(); }}>Search</Button>
@@ -133,24 +134,25 @@ export default function LeaderboardTable() {
             <TableHead>
               <TableRow>
                 <TableCell><strong>Rank</strong></TableCell>
-                <TableCell><strong>Alias</strong></TableCell>
+                <TableCell><strong>Company</strong></TableCell>
                 <TableCell align="right"><strong>Win %</strong></TableCell>
                 <TableCell align="right"><strong>ROI %</strong></TableCell>
                 <TableCell align="right"><strong>Plays</strong></TableCell>
                 <TableCell align="right"><strong>Current Streak</strong></TableCell>
                 <TableCell align="right"><strong>Longest Streak</strong></TableCell>
+                <TableCell align="center"><strong>Action</strong></TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
               {leaderboard.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={7} align="center">
+                  <TableCell colSpan={8} align="center">
                     No entries found
                   </TableCell>
                 </TableRow>
               ) : (
                 leaderboard.map((entry) => (
-                  <TableRow key={entry.rank} hover>
+                  <TableRow key={entry.companyId} hover>
                     <TableCell>
                       <Chip 
                         label={`#${entry.rank}`}
@@ -160,18 +162,21 @@ export default function LeaderboardTable() {
                     </TableCell>
                     <TableCell>
                       <Box display="flex" alignItems="center" gap={1}>
-                        <Avatar src={entry.whopAvatarUrl} sx={{ width: 28, height: 28 }}>
-                          {(entry.whopDisplayName || entry.alias || '?').charAt(0)}
+                        <Avatar src={entry.whopAvatarUrl} sx={{ width: 32, height: 32 }}>
+                          {(entry.companyName || '?').charAt(0).toUpperCase()}
                         </Avatar>
                         <Box>
-                          <Typography variant="body2" sx={{ color: '#fff' }}>
-                            {entry.whopDisplayName || entry.alias}
+                          <Typography variant="body2" sx={{ color: '#fff', fontWeight: 500 }}>
+                            {entry.companyName}
                           </Typography>
-                          {entry.whopUsername && (
+                          {entry.whopName && entry.whopName !== entry.companyName && (
                             <Typography variant="caption" sx={{ color: '#a1a1aa' }}>
-                              @{entry.whopUsername}
+                              {entry.whopName}
                             </Typography>
                           )}
+                          <Typography variant="caption" sx={{ color: '#6366f1', display: 'block', mt: 0.25 }}>
+                            {entry.memberCount} {entry.memberCount === 1 ? 'member' : 'members'}
+                          </Typography>
                         </Box>
                       </Box>
                     </TableCell>
@@ -202,6 +207,30 @@ export default function LeaderboardTable() {
                       {entry.currentStreak === 0 && '-'}
                     </TableCell>
                     <TableCell align="right">{entry.longestStreak}</TableCell>
+                    <TableCell align="center">
+                      {entry.membershipAffiliateLink ? (
+                        <Button
+                          variant="contained"
+                          size="small"
+                          href={entry.membershipAffiliateLink}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          sx={{
+                            background: 'linear-gradient(135deg, #6366f1, #ec4899)',
+                            color: 'white',
+                            '&:hover': {
+                              background: 'linear-gradient(135deg, #4f46e5, #db2777)',
+                            },
+                          }}
+                        >
+                          View Membership
+                        </Button>
+                      ) : (
+                        <Typography variant="caption" sx={{ color: '#a1a1aa' }}>
+                          No membership
+                        </Typography>
+                      )}
+                    </TableCell>
                   </TableRow>
                 ))
               )}

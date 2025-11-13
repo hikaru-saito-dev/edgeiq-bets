@@ -307,6 +307,23 @@ export async function notifyBetSettled(bet: IBet, result: IBet['result'], user?:
   const companyId = bet.companyId || (user?.companyId as string | undefined);
   if (!companyId) return;
 
+  // Check if user wants settlement notifications
+  let userForCheck = user;
+  if (!userForCheck && bet.userId) {
+    try {
+      await connectDB();
+      const { User } = await import('@/models/User');
+      userForCheck = await User.findById(bet.userId).lean() as unknown as IUser | null;
+    } catch {
+      // If we can't fetch user, continue without checking preference
+    }
+  }
+
+  // Only send if user has notifyOnSettlement enabled
+  if (!userForCheck?.notifyOnSettlement) {
+    return;
+  }
+
   const outcomeEmoji: Record<IBet['result'], string> = {
     win: '✅',
     loss: '❌',
@@ -315,29 +332,72 @@ export async function notifyBetSettled(bet: IBet, result: IBet['result'], user?:
     pending: '⏳',
   };
 
-  const message = [
+  // Calculate units won/lost for this bet
+  let unitsWonLost = 0;
+  if (result === 'win') {
+    unitsWonLost = bet.units * (bet.odds - 1);
+  } else if (result === 'loss') {
+    unitsWonLost = -bet.units;
+  } else if (result === 'push' || result === 'void') {
+    unitsWonLost = 0;
+  }
+
+  // Calculate total units from all settled bets
+  let totalUnits = 0;
+  try {
+    await connectDB();
+    const { Bet } = await import('@/models/Bet');
+    const allBets = await Bet.find({ 
+      userId: bet.userId,
+      result: { $in: ['win', 'loss', 'push', 'void'] },
+    }).lean() as unknown as IBet[];
+
+    allBets.forEach((b) => {
+      if (b.result === 'void' || b.result === 'push') return;
+      if (b.result === 'win') {
+        totalUnits += b.units * (b.odds - 1);
+      } else if (b.result === 'loss') {
+        totalUnits -= b.units;
+      }
+    });
+  } catch {
+    // If calculation fails, continue without total units
+  }
+
+  const messageLines = [
     `${outcomeEmoji[result]} **Bet Settled – ${result.toUpperCase()}**`,
-    `User: ${formatUser(user)}`,
+    `User: ${formatUser(userForCheck)}`,
     `Event: ${getEventLabel(bet)}`,
     `Market: ${getMarketLabel(bet)}`,
     `Stake: ${formatUnits(bet.units)}`,
     `Odds: ${formatOdds(bet)}`,
-  ].join('\n');
+    `Units ${result === 'win' ? 'Won' : result === 'loss' ? 'Lost' : 'Result'}: ${unitsWonLost >= 0 ? '+' : ''}${formatUnits(unitsWonLost)}`,
+    `Total Units (All Time): ${totalUnits >= 0 ? '+' : ''}${formatUnits(totalUnits)}`,
+  ];
 
   if (bet.marketType === 'Parlay') {
     const legDetails = await getParlayLegDetails(bet);
     if (legDetails.length > 0) {
-      const messageWithLegs = [
-        message,
-        'Legs:',
-        ...legDetails.map((line) => `• ${line}`),
-      ].join('\n');
-      await sendMessage(messageWithLegs, companyId);
-      return;
+      messageLines.push('Legs:', ...legDetails.map((line) => `• ${line}`));
     }
   }
 
-  await sendMessage(message, companyId);
+  const message = messageLines.join('\n');
+
+  // Send to user's webhooks if they have notifyOnSettlement enabled
+  const webhookPromises: Promise<void>[] = [];
+  if (userForCheck.discordWebhookUrl) {
+    webhookPromises.push(sendWebhookMessage(message, userForCheck.discordWebhookUrl));
+  }
+  if (userForCheck.whopWebhookUrl) {
+    webhookPromises.push(sendWebhookMessage(message, userForCheck.whopWebhookUrl));
+  }
+
+  // Send to all configured webhooks in parallel
+  if (webhookPromises.length > 0) {
+    await Promise.allSettled(webhookPromises);
+  }
 }
+
 
 
