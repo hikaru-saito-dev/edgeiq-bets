@@ -100,6 +100,27 @@ export const createBetSchema = z.object({
   
   // Market & Selection
   market: marketSelectionSchema,
+
+  // Optional Parlay legs (new structure for multi-game parlays)
+  parlay: z
+    .object({
+      legs: z
+        .array(
+          z.object({
+            game: gameSelectionSchema,
+            market: z.discriminatedUnion('marketType', [
+              mlMarketSchema,
+              spreadMarketSchema,
+              totalMarketSchema,
+              // Player props not auto-settled yet, but allowed
+              playerPropMarketSchema,
+            ]),
+            label: z.string().optional(),
+          })
+        )
+        .min(2, 'Parlay must have at least 2 legs'),
+    })
+    .optional(),
   
   // Odds & Stake
   odds: oddsInputSchema,

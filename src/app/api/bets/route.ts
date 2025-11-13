@@ -385,40 +385,77 @@ export async function POST(request: NextRequest) {
 
     // If this is a parlay, create individual bet entries for each line
     const parlayLines: IBet[] = [];
-    if (validatedNew && validatedNew.market.marketType === 'Parlay' && validatedNew.market.parlaySummary) {
-      const parsedLines = parseParlaySummary(validatedNew.market.parlaySummary);
-      
-      for (const line of parsedLines) {
-        // Create individual bet entry for each parlay line
-        // No stake or odds for individual lines - only the main parlay has those
-        const lineBetData: Record<string, unknown> = {
-          userId: user._id,
-          startTime: validatedNew.game.startTime,
-          units: 0.01, // Minimal placeholder (no stake for individual lines - main parlay has the stake)
-          odds: 1.01, // Minimal placeholder odds (not used - main parlay has the odds)
-          oddsFormat: 'decimal' as const,
-          result: 'pending' as const,
-          locked: new Date() >= validatedNew.game.startTime,
-          companyId: companyId || user.companyId,
-          eventName: validatedNew.eventName,
-          sport: validatedNew.game.sport,
-          sportKey: validatedNew.game.sportKey,
-          league: validatedNew.game.league,
-          homeTeam: validatedNew.game.homeTeam,
-          awayTeam: validatedNew.game.awayTeam,
-          homeTeamId: validatedNew.game.homeTeamId,
-          awayTeamId: validatedNew.game.awayTeamId,
-          provider: validatedNew.game.provider,
-          providerEventId: validatedNew.game.providerEventId,
-          marketType: line.marketType,
-          parlayId: bet._id, // Link to main parlay bet
-          ...(line.selection && { selection: line.selection }),
-          ...(line.line !== undefined && { line: line.line }),
-          ...(line.overUnder && { overUnder: line.overUnder }),
-        };
-        
-        const lineBet = await Bet.create(lineBetData);
-        parlayLines.push(lineBet);
+    if (validatedNew && validatedNew.market.marketType === 'Parlay') {
+      // Prefer structured legs if provided; otherwise parse summary for backward compatibility
+      const structuredLegs = (validatedNew as unknown as { parlay?: { legs?: Array<{ game: any; market: any; label?: string }> } }).parlay?.legs;
+      if (structuredLegs && Array.isArray(structuredLegs) && structuredLegs.length > 0) {
+        for (const leg of structuredLegs) {
+          const legGame = leg.game;
+          const m = leg.market;
+          const legStart = legGame.startTime ? new Date(legGame.startTime) : validatedNew.game.startTime;
+          const lockedLeg = new Date() >= legStart;
+          const lineBetData: Record<string, unknown> = {
+            userId: user._id,
+            startTime: legStart,
+            units: 0.01,
+            odds: 1.01,
+            oddsFormat: 'decimal' as const,
+            result: 'pending' as const,
+            locked: lockedLeg,
+            companyId: companyId || user.companyId,
+            eventName: `${legGame.awayTeam ?? ''} @ ${legGame.homeTeam ?? ''}`.trim() || validatedNew.eventName,
+            sport: legGame.sport,
+            sportKey: legGame.sportKey,
+            league: legGame.league,
+            homeTeam: legGame.homeTeam,
+            awayTeam: legGame.awayTeam,
+            homeTeamId: legGame.homeTeamId,
+            awayTeamId: legGame.awayTeamId,
+            provider: legGame.provider,
+            providerEventId: legGame.providerEventId,
+            marketType: m.marketType,
+            parlayId: bet._id,
+            ...(m.selection && { selection: m.selection }),
+            ...(m.line !== undefined && { line: m.line }),
+            ...(m.overUnder && { overUnder: m.overUnder }),
+            ...(m.playerName && { playerName: m.playerName }),
+            ...(m.playerId && { playerId: m.playerId }),
+            ...(m.statType && { statType: m.statType }),
+          };
+          const lineBet = await Bet.create(lineBetData);
+          parlayLines.push(lineBet);
+        }
+      } else if (validatedNew.market.parlaySummary) {
+        const parsedLines = parseParlaySummary(validatedNew.market.parlaySummary);
+        for (const line of parsedLines) {
+          const lineBetData: Record<string, unknown> = {
+            userId: user._id,
+            startTime: validatedNew.game.startTime,
+            units: 0.01,
+            odds: 1.01,
+            oddsFormat: 'decimal' as const,
+            result: 'pending' as const,
+            locked: new Date() >= validatedNew.game.startTime,
+            companyId: companyId || user.companyId,
+            eventName: validatedNew.eventName,
+            sport: validatedNew.game.sport,
+            sportKey: validatedNew.game.sportKey,
+            league: validatedNew.game.league,
+            homeTeam: validatedNew.game.homeTeam,
+            awayTeam: validatedNew.game.awayTeam,
+            homeTeamId: validatedNew.game.homeTeamId,
+            awayTeamId: validatedNew.game.awayTeamId,
+            provider: validatedNew.game.provider,
+            providerEventId: validatedNew.game.providerEventId,
+            marketType: line.marketType,
+            parlayId: bet._id,
+            ...(line.selection && { selection: line.selection }),
+            ...(line.line !== undefined && { line: line.line }),
+            ...(line.overUnder && { overUnder: line.overUnder }),
+          };
+          const lineBet = await Bet.create(lineBetData);
+          parlayLines.push(lineBet);
+        }
       }
     }
 

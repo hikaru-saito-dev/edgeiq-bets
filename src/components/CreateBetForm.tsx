@@ -21,6 +21,8 @@ import {
   Collapse,
   Chip,
 } from '@mui/material';
+import Switch from '@mui/material/Switch';
+import FormControlLabel from '@mui/material/FormControlLabel';
 import AddIcon from '@mui/icons-material/Add';
 import AttachMoneyIcon from '@mui/icons-material/AttachMoney';
 import TrendingUpIcon from '@mui/icons-material/TrendingUp';
@@ -233,7 +235,20 @@ export default function CreateBetForm({ open, onClose, onSuccess }: CreateBetFor
   const [statType, setStatType] = useState('');
   const [parlaySummary, setParlaySummary] = useState('');
   const [isParlay, setIsParlay] = useState(false);
-  const [parlayLegs, setParlayLegs] = useState<string[]>([]);
+  type ParlayLegLocal = {
+    label: string;
+    game: Game;
+    market: {
+      marketType: MarketType;
+      selection?: string;
+      line?: number;
+      overUnder?: 'Over' | 'Under';
+      playerName?: string;
+      playerId?: number;
+      statType?: string;
+    };
+  };
+  const [parlayLegs, setParlayLegs] = useState<ParlayLegLocal[]>([]);
   
   const [oddsFormat, setOddsFormat] = useState<OddsFormat>('american');
   const [oddsValue, setOddsValue] = useState<number | ''>('');
@@ -456,6 +471,15 @@ export default function CreateBetForm({ open, onClose, onSuccess }: CreateBetFor
           startTime: gameData.startTime,
         },
         market,
+        ...(isParlay && {
+          parlay: {
+            legs: parlayLegs.map((l) => ({
+              game: l.game,
+              market: l.market,
+              label: l.label,
+            })),
+          },
+        }),
         odds: {
           oddsFormat,
           oddsValue: oddsValue as number,
@@ -785,24 +809,40 @@ export default function CreateBetForm({ open, onClose, onSuccess }: CreateBetFor
   };
 
   // Format current selection into a parlay leg string
-  const formatCurrentLeg = (): string | null => {
+  const formatCurrentLeg = (forStore = false): { label: string; game: Game; market: ParlayLegLocal['market'] } | null => {
     if (!selectedGame) return null;
     if (marketType === 'ML') {
       if (!selection) return null;
-      return `${selection} ML`;
+      return {
+        label: `${selection} ML`,
+        game: selectedGame,
+        market: { marketType: 'ML', selection },
+      };
     }
     if (marketType === 'Spread') {
       if (!selection || typeof line !== 'number') return null;
       const sign = line > 0 ? '+' : '';
-      return `${selection} ${sign}${line}`;
+      return {
+        label: `${selection} ${sign}${line}`,
+        game: selectedGame,
+        market: { marketType: 'Spread', selection, line },
+      };
     }
     if (marketType === 'Total') {
       if (!overUnder || typeof line !== 'number') return null;
-      return `${overUnder} ${line}`;
+      return {
+        label: `${overUnder} ${line}`,
+        game: selectedGame,
+        market: { marketType: 'Total', line, overUnder },
+      };
     }
     if (marketType === 'Player Prop') {
       if (!playerName || !statType || typeof line !== 'number' || !overUnder) return null;
-      return `${playerName} ${statType} ${overUnder} ${line}`;
+      return {
+        label: `${playerName} ${statType} ${overUnder} ${line}`,
+        game: selectedGame,
+        market: { marketType: 'Player Prop', playerName, playerId: selectedPlayer?.id, statType, line, overUnder },
+      };
     }
     return null;
   };
@@ -814,7 +854,7 @@ export default function CreateBetForm({ open, onClose, onSuccess }: CreateBetFor
       return;
     }
     setParlayLegs((prev) => [...prev, leg]);
-    setParlaySummary((prev) => (prev ? `${prev} + ${leg}` : leg));
+    setParlaySummary((prev) => (prev ? `${prev} + ${leg.label}` : leg.label));
     // Reset market-specific fields for next leg
     setSelection('');
     setLine('');
@@ -932,26 +972,30 @@ export default function CreateBetForm({ open, onClose, onSuccess }: CreateBetFor
               Market & Selection *
             </Typography>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 1 }}>
-              <Button
-                variant={isParlay ? 'contained' : 'outlined'}
-                onClick={() => {
-                  const next = !isParlay;
-                  setIsParlay(next);
-                  if (!next) {
-                    // Reset parlay-related state when turning off
-                    setParlayLegs([]);
-                    setParlaySummary('');
-                  }
-                }}
-                sx={{
-                  textTransform: 'none',
-                  ...(isParlay
-                    ? { background: 'linear-gradient(135deg, #6366f1, #ec4899)', color: '#ffffff' }
-                    : { borderColor: 'rgba(99, 102, 241, 0.3)', color: '#ffffff' }),
-                }}
-              >
-                {isParlay ? 'Parlay Enabled' : 'Enable Parlay'}
-              </Button>
+              <FormControlLabel
+                control={
+                  <Switch
+                    checked={isParlay}
+                    onChange={(_, checked) => {
+                      setIsParlay(checked);
+                      if (!checked) {
+                        setParlayLegs([]);
+                        setParlaySummary('');
+                      }
+                    }}
+                    sx={{
+                      '& .MuiSwitch-switchBase.Mui-checked': { color: '#6366f1' },
+                      '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': { backgroundColor: '#6366f1' },
+                      '& .MuiSwitch-track': { backgroundColor: 'rgba(99, 102, 241, 0.3)' },
+                    }}
+                  />
+                }
+                label={
+                  <Typography sx={{ color: '#ffffff' }}>
+                    Parlay
+                  </Typography>
+                }
+              />
               {isParlay && (
                 <Typography variant="body2" sx={{ color: '#a1a1aa' }}>
                   Add multiple legs. Odds and stake apply to the whole parlay.
@@ -1026,8 +1070,8 @@ export default function CreateBetForm({ open, onClose, onSuccess }: CreateBetFor
                   <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
                     {parlayLegs.map((leg, idx) => (
                       <Chip
-                        key={`${leg}-${idx}`}
-                        label={`${idx + 1}. ${leg}`}
+                        key={`${leg.label}-${idx}`}
+                        label={`${idx + 1}. ${leg.label}`}
                         onDelete={() => {
                           const next = parlayLegs.filter((_, i) => i !== idx);
                           setParlayLegs(next);
