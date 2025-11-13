@@ -593,7 +593,7 @@ export default function ProfileForm() {
               label="Plan Name *"
               value={plan.name}
               onChange={(e) => handleMembershipPlanChange(plan.id, 'name', e.target.value)}
-              placeholder="e.g., TNL Premium"
+              placeholder="e.g., XX Premium"
               margin="normal"
               size="small"
               required
@@ -698,7 +698,7 @@ export default function ProfileForm() {
               label="Whop Product Page URL *"
               value={plan.url}
               onChange={(e) => handleMembershipPlanChange(plan.id, 'url', e.target.value)}
-              placeholder="https://whop.com/tracknlist/tnl-premium"
+              placeholder="https://whop.com/..."
               margin="normal"
               size="small"
               required
