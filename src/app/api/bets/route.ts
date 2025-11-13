@@ -19,6 +19,81 @@ import {
 
 export const runtime = 'nodejs';
 
+interface ParlayLine {
+  marketType: 'ML' | 'Spread' | 'Total';
+  selection?: string;
+  line?: number;
+  overUnder?: 'Over' | 'Under';
+}
+
+function parseParlaySummary(summary: string): ParlayLine[] {
+  const lines: ParlayLine[] = [];
+  const summaryLines = summary.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+  
+  for (const line of summaryLines) {
+    // Match patterns like "Team -3.5", "Team +3.5" (Spread)
+    const spreadMatch = line.match(/^(.+?)\s+([+-]?\d+\.?\d*)$/);
+    if (spreadMatch) {
+      const [, team, lineStr] = spreadMatch;
+      const lineNum = parseFloat(lineStr);
+      if (!isNaN(lineNum)) {
+        lines.push({
+          marketType: 'Spread',
+          selection: team.trim(),
+          line: lineNum,
+        });
+        continue;
+      }
+    }
+    
+    // Match patterns like "Team ML" (Moneyline)
+    if (line.match(/\bML\b$/i)) {
+      const team = line.replace(/\s+ML\s*$/i, '').trim();
+      if (team) {
+        lines.push({
+          marketType: 'ML',
+          selection: team,
+        });
+        continue;
+      }
+    }
+    
+    // Match patterns like "Team O 115.5" or "Team Over 115.5" (Total Over)
+    const overMatch = line.match(/^(.+?)\s+(?:O|Over)\s+(\d+\.?\d*)$/i);
+    if (overMatch) {
+      const [, team, lineStr] = overMatch;
+      const lineNum = parseFloat(lineStr);
+      if (!isNaN(lineNum)) {
+        lines.push({
+          marketType: 'Total',
+          selection: team.trim(),
+          line: lineNum,
+          overUnder: 'Over',
+        });
+        continue;
+      }
+    }
+    
+    // Match patterns like "Team U 115.5" or "Team Under 115.5" (Total Under)
+    const underMatch = line.match(/^(.+?)\s+(?:U|Under)\s+(\d+\.?\d*)$/i);
+    if (underMatch) {
+      const [, team, lineStr] = underMatch;
+      const lineNum = parseFloat(lineStr);
+      if (!isNaN(lineNum)) {
+        lines.push({
+          marketType: 'Total',
+          selection: team.trim(),
+          line: lineNum,
+          overUnder: 'Under',
+        });
+        continue;
+      }
+    }
+  }
+  
+  return lines;
+}
+
 /**
  * GET /api/bets
  * Get bets for the authenticated user with pagination and text search
@@ -265,7 +340,47 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Create main bet
     const bet = await Bet.create(betData);
+
+    // If this is a parlay, create individual bet entries for each line
+    const parlayLines: IBet[] = [];
+    if (validatedNew && validatedNew.market.marketType === 'Parlay' && validatedNew.market.parlaySummary) {
+      const parsedLines = parseParlaySummary(validatedNew.market.parlaySummary);
+      
+      for (const line of parsedLines) {
+        // Create individual bet entry for each parlay line
+        // No stake or odds for individual lines - only the main parlay has those
+        const lineBetData: Record<string, unknown> = {
+          userId: user._id,
+          startTime: validatedNew.game.startTime,
+          units: 0.01, // Minimal placeholder (no stake for individual lines - main parlay has the stake)
+          odds: 1.01, // Minimal placeholder odds (not used - main parlay has the odds)
+          oddsFormat: 'decimal' as const,
+          result: 'pending' as const,
+          locked: new Date() >= validatedNew.game.startTime,
+          companyId: companyId || user.companyId,
+          eventName: validatedNew.eventName,
+          sport: validatedNew.game.sport,
+          sportKey: validatedNew.game.sportKey,
+          league: validatedNew.game.league,
+          homeTeam: validatedNew.game.homeTeam,
+          awayTeam: validatedNew.game.awayTeam,
+          homeTeamId: validatedNew.game.homeTeamId,
+          awayTeamId: validatedNew.game.awayTeamId,
+          provider: validatedNew.game.provider,
+          providerEventId: validatedNew.game.providerEventId,
+          marketType: line.marketType,
+          parlayId: bet._id, // Link to main parlay bet
+          ...(line.selection && { selection: line.selection }),
+          ...(line.line !== undefined && { line: line.line }),
+          ...(line.overUnder && { overUnder: line.overUnder }),
+        };
+        
+        const lineBet = await Bet.create(lineBetData);
+        parlayLines.push(lineBet);
+      }
+    }
 
     // Log the action
     await Log.create({
@@ -281,7 +396,10 @@ export async function POST(request: NextRequest) {
 
     await notifyBetCreated(bet, user, companyId || user.companyId);
 
-    return NextResponse.json({ bet }, { status: 201 });
+    return NextResponse.json({ 
+      bet, 
+      ...(parlayLines.length > 0 && { parlayLines }) 
+    }, { status: 201 });
   } catch (error) {
     if (error instanceof Error && error.name === 'ZodError') {
       return NextResponse.json(

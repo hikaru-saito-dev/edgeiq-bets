@@ -46,6 +46,7 @@ export interface IBet extends Document {
   
   // System Fields
   companyId?: string; // Whop company ID (BizId)
+  parlayId?: Types.ObjectId; // Reference to main parlay bet (for parlay line bets)
   
   // Status
   result: BetResult;
@@ -102,6 +103,7 @@ const BetSchema = new Schema<IBet>({
   
   // System Fields
   companyId: { type: String, index: true },
+  parlayId: { type: Schema.Types.ObjectId, ref: 'Bet', index: true }, // Reference to main parlay bet
   
   // Status
   result: { 
