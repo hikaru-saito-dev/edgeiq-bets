@@ -524,31 +524,65 @@ export default function ProfileForm() {
         />
 
         {/* Membership Plans Section */}
-        <Divider sx={{ my: 3, borderColor: 'rgba(99, 102, 241, 0.3)' }} />
-        <Typography variant="h6" sx={{ color: '#ffffff', mb: 2, fontWeight: 600 }}>
-          Membership Plans
-        </Typography>
-        
+        <Divider sx={{ my: 4, borderColor: 'rgba(99, 102, 241, 0.3)' }} />
+        <Box mb={3}>
+          <Typography variant="h6" sx={{ color: '#ffffff', mb: 1, fontWeight: 600 }}>
+            Membership Plans
+          </Typography>
+          <Typography variant="body2" sx={{ color: '#a1a1aa' }}>
+            Add your Whop product page URLs to generate affiliate links
+          </Typography>
+        </Box>
 
         {membershipPlans.map((plan, index) => (
           <Paper
             key={plan.id}
             sx={{
-              p: 2,
-              mb: 2,
-              background: 'rgba(15, 15, 35, 0.5)',
+              p: 3,
+              mb: 3,
+              background: 'linear-gradient(135deg, rgba(15, 15, 35, 0.8), rgba(30, 30, 60, 0.6))',
               border: '1px solid rgba(99, 102, 241, 0.3)',
-              borderRadius: 2,
+              borderRadius: 3,
+              boxShadow: '0 4px 20px rgba(99, 102, 241, 0.1)',
+              transition: 'all 0.3s ease',
+              '&:hover': {
+                borderColor: 'rgba(99, 102, 241, 0.5)',
+                boxShadow: '0 6px 30px rgba(99, 102, 241, 0.2)',
+              },
             }}
           >
-            <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
-              <Typography variant="subtitle1" sx={{ color: '#ffffff', fontWeight: 600 }}>
-                Plan {index + 1}
-              </Typography>
+            <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
+              <Box display="flex" alignItems="center" gap={1}>
+                <Chip
+                  label={`Plan ${index + 1}`}
+                  size="small"
+                  sx={{
+                    background: 'linear-gradient(135deg, #6366f1, #ec4899)',
+                    color: '#ffffff',
+                    fontWeight: 600,
+                  }}
+                />
+                {plan.isPremium && (
+                  <Chip
+                    label="Premium"
+                    size="small"
+                    sx={{
+                      background: 'rgba(236, 72, 153, 0.2)',
+                      color: '#ec4899',
+                      border: '1px solid rgba(236, 72, 153, 0.3)',
+                    }}
+                  />
+                )}
+              </Box>
               <IconButton
                 onClick={() => handleRemoveMembershipPlan(plan.id)}
                 size="small"
-                sx={{ color: '#ef4444' }}
+                sx={{
+                  color: '#ef4444',
+                  '&:hover': {
+                    background: 'rgba(239, 68, 68, 0.1)',
+                  },
+                }}
               >
                 <DeleteIcon />
               </IconButton>
@@ -692,11 +726,29 @@ export default function ProfileForm() {
             />
 
             {plan.url && (
-              <Box mt={1} p={1.5} sx={{ background: 'rgba(99, 102, 241, 0.1)', borderRadius: 1, border: '1px solid rgba(99, 102, 241, 0.3)' }}>
-                <Box display="flex" justifyContent="space-between" alignItems="center">
-                  <Box flex={1}>
-                    <Typography variant="caption" sx={{ color: '#a1a1aa', display: 'block', mb: 0.5 }}>
-                      Your Affiliate Link:
+              <Box
+                mt={2}
+                p={2}
+                sx={{
+                  background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.15), rgba(236, 72, 153, 0.1))',
+                  borderRadius: 2,
+                  border: '1px solid rgba(99, 102, 241, 0.3)',
+                }}
+              >
+                <Box display="flex" justifyContent="space-between" alignItems="flex-start" gap={2}>
+                  <Box flex={1} minWidth={0}>
+                    <Typography
+                      variant="caption"
+                      sx={{
+                        color: '#a1a1aa',
+                        display: 'block',
+                        mb: 1,
+                        fontWeight: 500,
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.5px',
+                      }}
+                    >
+                      Affiliate Link
                     </Typography>
                     <Typography
                       variant="body2"
@@ -704,7 +756,11 @@ export default function ProfileForm() {
                         color: '#6366f1',
                         wordBreak: 'break-all',
                         fontFamily: 'monospace',
-                        fontSize: '0.85rem',
+                        fontSize: '0.875rem',
+                        background: 'rgba(0, 0, 0, 0.2)',
+                        padding: '8px 12px',
+                        borderRadius: 1,
+                        border: '1px solid rgba(99, 102, 241, 0.2)',
                       }}
                     >
                       {generateAffiliateLink(plan.url)}
@@ -713,7 +769,15 @@ export default function ProfileForm() {
                   <IconButton
                     onClick={() => copyAffiliateLink(plan.url)}
                     size="small"
-                    sx={{ color: '#6366f1', ml: 1 }}
+                    sx={{
+                      color: '#6366f1',
+                      background: 'rgba(99, 102, 241, 0.1)',
+                      border: '1px solid rgba(99, 102, 241, 0.3)',
+                      '&:hover': {
+                        background: 'rgba(99, 102, 241, 0.2)',
+                        borderColor: '#6366f1',
+                      },
+                    }}
                     title="Copy affiliate link"
                   >
                     <ContentCopyIcon fontSize="small" />
@@ -724,41 +788,56 @@ export default function ProfileForm() {
           </Paper>
         ))}
 
-        <Button
-          variant="outlined"
-          startIcon={<AddIcon />}
-          onClick={handleAddMembershipPlan}
-          sx={{
-            mb: 2,
-            color: '#6366f1',
-            borderColor: 'rgba(99, 102, 241, 0.3)',
-            '&:hover': {
-              borderColor: '#6366f1',
-              background: 'rgba(99, 102, 241, 0.1)',
-            },
-          }}
-        >
-          Add Membership Plan
-        </Button>
+        <Box display="flex" gap={2} flexWrap="wrap" mt={3}>
+          <Button
+            variant="outlined"
+            startIcon={<AddIcon />}
+            onClick={handleAddMembershipPlan}
+            sx={{
+              color: '#6366f1',
+              borderColor: 'rgba(99, 102, 241, 0.3)',
+              px: 3,
+              py: 1.5,
+              fontWeight: 600,
+              '&:hover': {
+                borderColor: '#6366f1',
+                background: 'rgba(99, 102, 241, 0.1)',
+                transform: 'translateY(-2px)',
+                boxShadow: '0 4px 12px rgba(99, 102, 241, 0.2)',
+              },
+              transition: 'all 0.3s ease',
+            }}
+          >
+            Add Membership Plan
+          </Button>
 
-        <Button
-          variant="contained"
-          onClick={handleSave}
-          disabled={saving}
-          sx={{ 
-            mt: 2,
-            background: 'linear-gradient(135deg, #6366f1, #ec4899)',
-            '&:hover': {
-              background: 'linear-gradient(135deg, #4f46e5, #db2777)',
-            },
-            '&:disabled': {
-              background: 'rgba(99, 102, 241, 0.3)',
-            },
-          }}
-          startIcon={saving ? <CircularProgress size={16} sx={{ color: '#ffffff' }} /> : null}
-        >
-          {saving ? 'Saving...' : 'Save Profile'}
-        </Button>
+          <Button
+            variant="contained"
+            onClick={handleSave}
+            disabled={saving}
+            sx={{
+              background: 'linear-gradient(135deg, #6366f1, #ec4899)',
+              color: 'white',
+              px: 4,
+              py: 1.5,
+              fontWeight: 600,
+              boxShadow: '0 4px 20px rgba(99, 102, 241, 0.3)',
+              '&:hover': {
+                background: 'linear-gradient(135deg, #4f46e5, #db2777)',
+                transform: 'translateY(-2px)',
+                boxShadow: '0 6px 30px rgba(99, 102, 241, 0.4)',
+              },
+              '&:disabled': {
+                background: 'rgba(99, 102, 241, 0.3)',
+                boxShadow: 'none',
+              },
+              transition: 'all 0.3s ease',
+            }}
+            startIcon={saving ? <CircularProgress size={16} sx={{ color: '#ffffff' }} /> : null}
+          >
+            {saving ? 'Saving...' : 'Save Profile'}
+          </Button>
+        </Box>
       </Paper>
 
       {stats && (

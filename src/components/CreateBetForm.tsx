@@ -1092,38 +1092,61 @@ export default function CreateBetForm({ open, onClose, onSuccess }: CreateBetFor
 
           {/* Odds & Stake */}
           <Box>
-            <Typography variant="subtitle2" sx={{ color: '#ffffff', mb: 1, fontWeight: 600 }}>
-              Odds *
-            </Typography>
-            <Box sx={{ display: 'flex', gap: 1, mb: 1 }}>
-              <Button
-                size="small"
-                variant={oddsFormat === 'american' ? 'contained' : 'outlined'}
-                onClick={() => setOddsFormat('american')}
-                sx={{
-                  minWidth: 100,
-                  ...(oddsFormat === 'american' 
-                    ? { background: 'linear-gradient(135deg, #6366f1, #ec4899)' }
-                    : { borderColor: 'rgba(99, 102, 241, 0.3)', color: '#ffffff' }
-                  ),
-                }}
-              >
-                American
-              </Button>
-              <Button
-                size="small"
-                variant={oddsFormat === 'decimal' ? 'contained' : 'outlined'}
-                onClick={() => setOddsFormat('decimal')}
-                sx={{
-                  minWidth: 100,
-                  ...(oddsFormat === 'decimal' 
-                    ? { background: 'linear-gradient(135deg, #6366f1, #ec4899)' }
-                    : { borderColor: 'rgba(99, 102, 241, 0.3)', color: '#ffffff' }
-                  ),
-                }}
-              >
-                Decimal
-              </Button>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+              <Typography variant="subtitle2" sx={{ color: '#ffffff', fontWeight: 600 }}>
+                Odds *
+              </Typography>
+              <FormControlLabel
+                control={
+                  <Switch
+                    checked={oddsFormat === 'decimal'}
+                    onChange={(e) => setOddsFormat(e.target.checked ? 'decimal' : 'american')}
+                    sx={{
+                      '& .MuiSwitch-switchBase': {
+                        '&.Mui-checked': {
+                          color: '#6366f1',
+                          '& + .MuiSwitch-track': {
+                            backgroundColor: '#6366f1',
+                          },
+                        },
+                      },
+                      '& .MuiSwitch-track': {
+                        backgroundColor: 'rgba(99, 102, 241, 0.3)',
+                        borderRadius: 12,
+                      },
+                      '& .MuiSwitch-thumb': {
+                        borderRadius: '50%',
+                      },
+                    }}
+                  />
+                }
+                label={
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <Typography
+                      variant="body2"
+                      sx={{
+                        color: oddsFormat === 'american' ? '#ffffff' : '#a1a1aa',
+                        fontWeight: oddsFormat === 'american' ? 600 : 400,
+                        transition: 'all 0.3s ease',
+                      }}
+                    >
+                      American
+                    </Typography>
+                    <Typography
+                      variant="body2"
+                      sx={{
+                        color: oddsFormat === 'decimal' ? '#ffffff' : '#a1a1aa',
+                        fontWeight: oddsFormat === 'decimal' ? 600 : 400,
+                        transition: 'all 0.3s ease',
+                      }}
+                    >
+                      Decimal
+                    </Typography>
+                  </Box>
+                }
+                labelPlacement="start"
+                sx={{ margin: 0 }}
+              />
             </Box>
             <Box sx={{ display: 'flex', gap: 2, flexDirection: { xs: 'column', sm: 'row' } }}>
               <Box sx={{ flex: 1 }}>
