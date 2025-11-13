@@ -727,6 +727,11 @@ export async function DELETE(request: NextRequest) {
     // Save bet data before deletion for notification
     const betData = bet.toObject();
     
+    // If parlay, delete all legs linked to it
+    if (bet.marketType === 'Parlay') {
+      await Bet.deleteMany({ parlayId: bet._id, userId: user._id });
+    }
+
     await bet.deleteOne();
     await Log.create({
       userId: user._id,

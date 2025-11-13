@@ -470,7 +470,9 @@ export async function POST(request: NextRequest) {
           });
 
           const user = await User.findById(bet.userId);
-          await notifyBetSettled(bet as unknown as IBet, result, user ?? undefined);
+          if (!bet.parlayId) {
+            await notifyBetSettled(bet as unknown as IBet, result, user ?? undefined);
+          }
 
           results.settled++;
           results.details.push({ betId: bet._id.toString(), result });

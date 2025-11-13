@@ -524,7 +524,9 @@ export async function POST(request: NextRequest) {
     });
 
     const userForNotification = user ?? await User.findById(bet.userId);
-    await notifyBetSettled(bet as unknown as IBet, result, userForNotification ?? undefined);
+    if (!bet.parlayId) {
+      await notifyBetSettled(bet as unknown as IBet, result, userForNotification ?? undefined);
+    }
 
     return NextResponse.json({
       bet,
