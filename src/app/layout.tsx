@@ -3,6 +3,7 @@ import { Inter } from 'next/font/google';
 import './globals.css';
 import { Box } from '@mui/material';
 import Navigation from '@/components/Navigation';
+import { AccessProvider } from '@/components/AccessProvider';
 import ThemeProvider from '@/components/ThemeProvider';
 
 const inter = Inter({ subsets: ['latin'] });
@@ -21,7 +22,8 @@ export default function RootLayout({
     <html lang="en">
       <body className={inter.className}>
         <ThemeProvider>
-          <Box
+          <AccessProvider>
+            <Box
             sx={{
               minHeight: '100vh',
               background: 'linear-gradient(135deg, #0f0f23 0%, #1a1a3e 50%, #2d1b69 100%)',
@@ -43,11 +45,12 @@ export default function RootLayout({
               },
             }}
           >
-            <Navigation />
-            <Box component="main" sx={{ position: 'relative', zIndex: 1 }}>
-              {children}
+              <Navigation />
+              <Box component="main" sx={{ position: 'relative', zIndex: 1 }}>
+                {children}
+              </Box>
             </Box>
-          </Box>
+          </AccessProvider>
         </ThemeProvider>
       </body>
     </html>

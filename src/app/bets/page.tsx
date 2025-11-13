@@ -21,6 +21,7 @@ import CreateBetForm from '@/components/CreateBetForm';
 import { useToast } from '@/components/ToastProvider';
 import { motion, AnimatePresence } from 'framer-motion';
 import SearchIcon from '@mui/icons-material/Search';
+import { useAccess } from '@/components/AccessProvider';
 
 interface Bet {
   _id: string;
@@ -54,6 +55,7 @@ export default function BetsPage() {
   const [bets, setBets] = useState<Bet[]>([]);
   const [loading, setLoading] = useState(true);
   const [createOpen, setCreateOpen] = useState(false);
+  const { isAuthorized, loading: accessLoading } = useAccess();
 
   // Pagination & search
   const [page, setPage] = useState(1);
@@ -62,20 +64,23 @@ export default function BetsPage() {
   const [search, setSearch] = useState('');
 
   useEffect(() => {
+    if (!isAuthorized) return;
     fetchBets();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [page, pageSize]);
+  }, [page, pageSize, isAuthorized]);
 
   // Debounced search-as-you-type
   useEffect(() => {
+    if (!isAuthorized) return;
     const handle = setTimeout(() => {
       setPage(1);
       fetchBets();
     }, 300);
     return () => clearTimeout(handle);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [search]);
+  }, [search, isAuthorized]);
   useEffect(() => {
+    if (!isAuthorized) return;
     const fetchSettle = async () => {
       try {
         const response = await fetch('/api/bets/settle-all', {
@@ -90,9 +95,15 @@ export default function BetsPage() {
     };
     fetchSettle();
     fetchBets();
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAuthorized]);
 
   const fetchBets = async () => {
+    if (!isAuthorized) {
+      setBets([]);
+      setLoading(false);
+      return;
+    }
     try {
       setLoading(true);
       const params = new URLSearchParams({ page: String(page), pageSize: String(pageSize) });
@@ -113,6 +124,41 @@ export default function BetsPage() {
     }
   };
 
+
+  if (accessLoading) {
+    return (
+      <Container maxWidth="lg" sx={{ py: 4 }}>
+        <Box display="flex" flexDirection="column" alignItems="center" justifyContent="center" minHeight={400} gap={3}>
+          <CircularProgress 
+            size={60}
+            thickness={4}
+            sx={{ 
+              color: '#6366f1',
+              filter: 'drop-shadow(0 0 10px rgba(99, 102, 241, 0.5))',
+            }} 
+          />
+          <Typography variant="h6" sx={{ color: '#a1a1aa', fontWeight: 500 }}>
+            Checking access...
+          </Typography>
+        </Box>
+      </Container>
+    );
+  }
+
+  if (!isAuthorized) {
+    return (
+      <Container maxWidth="md" sx={{ py: 6 }}>
+        <Paper sx={{ p: 6, textAlign: 'center', borderRadius: 3 }}>
+          <Typography variant="h5" gutterBottom sx={{ fontWeight: 600 }}>
+            Access Restricted
+          </Typography>
+          <Typography variant="body1" color="text.secondary">
+            Only administrators and owners can manage bets.
+          </Typography>
+        </Paper>
+      </Container>
+    );
+  }
 
   return (
     <Container maxWidth="lg" sx={{ py: 4 }}>

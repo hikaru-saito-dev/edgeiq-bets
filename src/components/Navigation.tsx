@@ -2,8 +2,11 @@
 
 import { AppBar, Toolbar, Typography, Button, Box } from '@mui/material';
 import Link from 'next/link';
+import { useAccess } from './AccessProvider';
 
 export default function Navigation() {
+  const { isAuthorized, loading } = useAccess();
+
   return (
     <AppBar 
       position="static" 
@@ -30,20 +33,22 @@ export default function Navigation() {
           EdgeIQ Bets
         </Typography>
         <Box sx={{ display: 'flex', gap: 1 }}>
-          <Button 
-            component={Link} 
-            href="/bets"
-            sx={{
-              color: 'rgba(255, 255, 255, 0.7)',
-              fontWeight: 600,
-              '&:hover': {
-                color: '#ffffff',
-                background: 'rgba(99, 102, 241, 0.1)',
-              },
-            }}
-          >
-            Bets
-          </Button>
+          {!loading && isAuthorized && (
+            <Button 
+              component={Link} 
+              href="/bets"
+              sx={{
+                color: 'rgba(255, 255, 255, 0.7)',
+                fontWeight: 600,
+                '&:hover': {
+                  color: '#ffffff',
+                  background: 'rgba(99, 102, 241, 0.1)',
+                },
+              }}
+            >
+              Bets
+            </Button>
+          )}
           <Button 
             component={Link} 
             href="/leaderboard"
@@ -58,20 +63,22 @@ export default function Navigation() {
           >
             Leaderboard
           </Button>
-          <Button 
-            component={Link} 
-            href="/profile"
-            sx={{
-              color: 'rgba(255, 255, 255, 0.7)',
-              fontWeight: 600,
-              '&:hover': {
-                color: '#ffffff',
-                background: 'rgba(99, 102, 241, 0.1)',
-              },
-            }}
-          >
-            Profile
-          </Button>
+          {!loading && isAuthorized && (
+            <Button 
+              component={Link} 
+              href="/profile"
+              sx={{
+                color: 'rgba(255, 255, 255, 0.7)',
+                fontWeight: 600,
+                '&:hover': {
+                  color: '#ffffff',
+                  background: 'rgba(99, 102, 241, 0.1)',
+                },
+              }}
+            >
+              Profile
+            </Button>
+          )}
         </Box>
       </Toolbar>
     </AppBar>

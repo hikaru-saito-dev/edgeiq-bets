@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import connectDB from '@/lib/db';
-import { verifyWhopUser, getWhopCompany, getWhopUser } from '@/lib/whop';
+import { verifyWhopUser, getWhopCompany, getWhopUser, userHasCompanyAccess } from '@/lib/whop';
 import { Bet, IBet } from '@/models/Bet';
 import { User } from '@/models/User';
 import { Log } from '@/models/Log';
@@ -152,6 +152,11 @@ export async function GET(request: NextRequest) {
 
     const { userId, companyId } = authInfo;
 
+    const accessRole = companyId ? await userHasCompanyAccess({ userId, companyId }) : 'none';
+    if (accessRole !== 'owner' && accessRole !== 'admin') {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
     // Parse query params
     const { searchParams } = new URL(request.url);
     const page = Math.max(1, parseInt(searchParams.get('page') || '1', 10));
@@ -285,6 +290,11 @@ export async function POST(request: NextRequest) {
     }
 
     const { userId, companyId } = authInfo;
+
+    const accessRole = companyId ? await userHasCompanyAccess({ userId, companyId }) : 'none';
+    if (accessRole !== 'owner' && accessRole !== 'admin') {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
 
     const body = await request.json();
     
@@ -562,119 +572,6 @@ export async function POST(request: NextRequest) {
 }
 
 /**
- * PATCH /api/bets
- * Update an existing bet (only if not locked)
- */
-export async function PATCH(request: NextRequest) {
-  try {
-    await connectDB();
-    const headers = await import('next/headers').then(m => m.headers());
-    const authInfo = await verifyWhopUser(headers);
-    
-    if (!authInfo) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const { userId, companyId } = authInfo;
-
-    const body = await request.json();
-    const { betId, ...updateData } = body;
-
-    if (!betId) {
-      return NextResponse.json({ error: 'betId is required' }, { status: 400 });
-    }
-
-    const validated = updateBetSchema.parse(updateData);
-
-    // Find user
-    const user = await User.findOne({ whopUserId: userId, companyId: companyId || 'default' });
-    if (!user) {
-      return NextResponse.json({ error: 'User not found' }, { status: 404 });
-    }
-
-    // Find bet
-    const bet = await Bet.findOne({ _id: betId, userId: user._id });
-    if (!bet) {
-      return NextResponse.json({ error: 'Bet not found' }, { status: 404 });
-    }
-
-    // Anti-tamper: Multiple layers of protection
-    const now = new Date();
-    const startTime = new Date(bet.startTime);
-    
-    // Check 1: Bet is already locked
-    if (bet.locked) {
-      return NextResponse.json(
-        { error: 'Bet is locked and cannot be edited. Event has already started.' },
-        { status: 403 }
-      );
-    }
-    
-    // Check 2: Current time has passed start time
-    if (now >= startTime) {
-      // Auto-lock the bet if it hasn't been locked yet
-      bet.locked = true;
-      await bet.save();
-      return NextResponse.json(
-        { error: 'Cannot edit bet after event start time. Bet has been automatically locked.' },
-        { status: 403 }
-      );
-    }
-    
-    // Update bet (startTime cannot be updated after creation)
-    // Only allow updating optional fields: book, notes, slipImageUrl
-    // Legacy: also allow updating eventName, odds, units if provided
-    if (validated.book !== undefined) bet.book = validated.book;
-    if (validated.notes !== undefined) bet.notes = validated.notes;
-    if (validated.slipImageUrl !== undefined) bet.slipImageUrl = validated.slipImageUrl;
-    
-    // Legacy fields (for backward compatibility)
-    if (validated.eventName !== undefined) bet.eventName = validated.eventName;
-    if (validated.odds !== undefined) bet.odds = validated.odds;
-    if (validated.units !== undefined) bet.units = validated.units;
-    
-    // Final check: Re-validate lock status after update
-    if (now >= bet.startTime) {
-      bet.locked = true;
-    }
-    
-    await bet.save();
-
-    // Log the action
-    await Log.create({
-      userId: user._id,
-      betId: bet._id,
-      action: 'bet_updated',
-      metadata: updateData,
-    });
-
-    const changeSummary: Record<string, unknown> = {};
-    if (validated.book !== undefined) changeSummary.Book = bet.book;
-    if (validated.notes !== undefined) changeSummary.Notes = bet.notes;
-    if (validated.slipImageUrl !== undefined) changeSummary['Slip URL'] = bet.slipImageUrl;
-    if (validated.eventName !== undefined) changeSummary.Event = bet.eventName;
-    if (validated.odds !== undefined) changeSummary.Odds = bet.odds;
-    if (validated.units !== undefined) changeSummary.Units = bet.units;
-
-    await notifyBetUpdated(bet, user, changeSummary);
-
-    return NextResponse.json({ bet });
-  } catch (error) {
-    if (error instanceof Error && error.name === 'ZodError') {
-      return NextResponse.json(
-        { error: 'Validation error', details: error },
-        { status: 400 }
-      );
-    }
-    console.error('Error updating bet:', error);
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    );
-  }
-}
-
-/**
  * PUT /api/bets?action=settle
  * Manual settlement is disabled - bets are auto-settled based on game results
  */
@@ -700,6 +597,12 @@ export async function DELETE(request: NextRequest) {
     }
 
     const { userId, companyId } = authInfo;
+
+    const accessRole = companyId ? await userHasCompanyAccess({ userId, companyId }) : 'none';
+    if (accessRole !== 'owner' && accessRole !== 'admin') {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
     const body = await request.json();
     const { betId } = body;
 

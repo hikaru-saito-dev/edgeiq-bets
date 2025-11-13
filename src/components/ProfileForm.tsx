@@ -33,6 +33,7 @@ import {
   AreaChart,
   Area
 } from 'recharts';
+import { useAccess } from './AccessProvider';
 
 interface UserStats {
   totalBets: number;
@@ -85,12 +86,20 @@ export default function ProfileForm() {
   const [bets, setBets] = useState<Bet[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const { isAuthorized, loading: accessLoading } = useAccess();
 
   useEffect(() => {
+    if (!isAuthorized) {
+      setLoading(false);
+      return;
+    }
     fetchProfile();
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAuthorized]);
 
   const fetchProfile = async () => {
+    if (!isAuthorized) return;
+    setLoading(true);
     try {
       const [profileResponse, betsResponse] = await Promise.all([
         fetch('/api/user'),
@@ -116,6 +125,7 @@ export default function ProfileForm() {
   };
 
   const handleSave = async () => {
+    if (!isAuthorized) return;
     setSaving(true);
     try {
       const response = await fetch('/api/user', {
@@ -141,7 +151,7 @@ export default function ProfileForm() {
     }
   };
 
-  if (loading) {
+  if (accessLoading || loading) {
     return (
       <Box display="flex" flexDirection="column" alignItems="center" justifyContent="center" minHeight={400} gap={3}>
         <motion.div
@@ -195,6 +205,19 @@ export default function ProfileForm() {
           </Box>
         </Box>
       </Box>
+    );
+  }
+
+  if (!isAuthorized) {
+    return (
+      <Paper sx={{ p: 4, textAlign: 'center', borderRadius: 3, background: 'linear-gradient(135deg, rgba(15, 15, 35, 0.9), rgba(30, 30, 60, 0.8))', backdropFilter: 'blur(20px)', border: '1px solid rgba(99, 102, 241, 0.3)' }}>
+        <Typography variant="h6" gutterBottom sx={{ fontWeight: 600 }}>
+          Access Restricted
+        </Typography>
+        <Typography variant="body2" color="text.secondary">
+          Only administrators and owners can view or update profile data.
+        </Typography>
+      </Paper>
     );
   }
 

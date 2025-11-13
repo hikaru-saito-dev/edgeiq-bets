@@ -1,3 +1,4 @@
+import { Bet } from '@/models/Bet';
 import type { IBet } from '@/models/Bet';
 import type { IUser } from '@/models/User';
 
@@ -177,6 +178,48 @@ function formatUser(user?: IUser | null): string {
   return user.alias || user.whopDisplayName || user.whopUsername || user.whopUserId || 'Unknown bettor';
 }
 
+function formatParlayLegMarket(leg: IBet): string {
+  switch (leg.marketType) {
+    case 'ML':
+      return leg.selection ? `Moneyline – ${leg.selection}` : 'Moneyline';
+    case 'Spread':
+      return leg.selection && leg.line !== undefined
+        ? `Spread – ${leg.selection} ${leg.line > 0 ? '+' : ''}${leg.line}`
+        : 'Spread';
+    case 'Total':
+      return leg.line !== undefined && leg.overUnder
+        ? `Total – ${leg.overUnder} ${leg.line}`
+        : 'Total';
+    case 'Player Prop':
+      return leg.playerName && leg.statType
+        ? `Player Prop – ${leg.playerName} ${leg.statType}${leg.line !== undefined ? ` ${leg.overUnder ?? ''} ${leg.line}` : ''}`
+        : 'Player Prop';
+    default:
+      return leg.marketType;
+  }
+}
+
+async function getParlayLegDetails(bet: IBet): Promise<string[]> {
+  const id = typeof bet._id === 'string' ? bet._id : bet._id?.toString?.();
+  if (!id) return [];
+
+  try {
+    const legDocs = await Bet.find({ parlayId: id })
+      .sort({ startTime: 1 })
+      .lean();
+
+    return (legDocs as unknown as IBet[]).map((leg, index) => {
+      const event = getEventLabel(leg);
+      const market = formatParlayLegMarket(leg);
+      const start = leg.startTime ? ` – ${formatDate(new Date(leg.startTime))}` : '';
+      return `Leg ${index + 1}: ${event}${start}\n    ${market}`;
+    });
+  } catch (error) {
+    console.error('Error fetching parlay legs for notifications:', error);
+    return [];
+  }
+}
+
 export async function notifyBetCreated(bet: IBet, user?: IUser | null, companyId?: string): Promise<void> {
   const finalCompanyId = companyId || (user?.companyId as string | undefined) || bet.companyId;
   if (!finalCompanyId) return;
@@ -199,6 +242,13 @@ export async function notifyBetCreated(bet: IBet, user?: IUser | null, companyId
   }
   if (bet.slipImageUrl) {
     messageLines.push(`Slip: ${bet.slipImageUrl}`);
+  }
+
+  if (bet.marketType === 'Parlay') {
+    const legDetails = await getParlayLegDetails(bet);
+    if (legDetails.length > 0) {
+      messageLines.push('Parlay Legs:', ...legDetails.map((line) => `• ${line}`));
+    }
   }
 
   await sendMessage(messageLines.join('\n'), finalCompanyId);
@@ -226,6 +276,13 @@ export async function notifyBetUpdated(bet: IBet, user?: IUser | null, updatedFi
 
   lines.push(`Stake: ${formatUnits(bet.units)}`);
   lines.push(`Odds: ${formatOdds(bet)}`);
+
+  if (bet.marketType === 'Parlay') {
+    const legDetails = await getParlayLegDetails(bet);
+    if (legDetails.length > 0) {
+      lines.push('Legs:', ...legDetails.map((line) => `• ${line}`));
+    }
+  }
 
   await sendMessage(lines.join('\n'), companyId);
 }
@@ -266,6 +323,19 @@ export async function notifyBetSettled(bet: IBet, result: IBet['result'], user?:
     `Stake: ${formatUnits(bet.units)}`,
     `Odds: ${formatOdds(bet)}`,
   ].join('\n');
+
+  if (bet.marketType === 'Parlay') {
+    const legDetails = await getParlayLegDetails(bet);
+    if (legDetails.length > 0) {
+      const messageWithLegs = [
+        message,
+        'Legs:',
+        ...legDetails.map((line) => `• ${line}`),
+      ].join('\n');
+      await sendMessage(messageWithLegs, companyId);
+      return;
+    }
+  }
 
   await sendMessage(message, companyId);
 }

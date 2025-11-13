@@ -3,8 +3,11 @@
 import { Container, Typography, Box, Button } from '@mui/material';
 import Link from 'next/link';
 import { motion } from 'framer-motion';
+import { useAccess } from '@/components/AccessProvider';
 
 export default function Home() {
+  const { isAuthorized, loading } = useAccess();
+
   return (
     <Container maxWidth="lg" sx={{ py: 8 }}>
       <motion.div
@@ -53,29 +56,31 @@ export default function Home() {
         transition={{ duration: 0.6, delay: 0.4 }}
       >
         <Box sx={{ display: 'flex', gap: 3, justifyContent: 'center', flexWrap: 'wrap' }}>
-          <Button 
-            variant="contained" 
-            size="large" 
-            component={Link} 
-            href="/bets"
-            sx={{
-              background: 'linear-gradient(135deg, #6366f1 0%, #ec4899 100%)',
-              color: 'white',
-              px: 4,
-              py: 1.5,
-              fontSize: '1.1rem',
-              fontWeight: 600,
-              boxShadow: '0 8px 32px rgba(99, 102, 241, 0.3)',
-              '&:hover': {
-                background: 'linear-gradient(135deg, #4f46e5 0%, #db2777 100%)',
-                boxShadow: '0 12px 40px rgba(99, 102, 241, 0.4)',
-                transform: 'translateY(-2px)',
-              },
-              transition: 'all 0.3s ease',
-            }}
-          >
-            View My Bets
-          </Button>
+          {!loading && isAuthorized && (
+            <Button 
+              variant="contained" 
+              size="large" 
+              component={Link} 
+              href="/bets"
+              sx={{
+                background: 'linear-gradient(135deg, #6366f1 0%, #ec4899 100%)',
+                color: 'white',
+                px: 4,
+                py: 1.5,
+                fontSize: '1.1rem',
+                fontWeight: 600,
+                boxShadow: '0 8px 32px rgba(99, 102, 241, 0.3)',
+                '&:hover': {
+                  background: 'linear-gradient(135deg, #4f46e5 0%, #db2777 100%)',
+                  boxShadow: '0 12px 40px rgba(99, 102, 241, 0.4)',
+                  transform: 'translateY(-2px)',
+                },
+                transition: 'all 0.3s ease',
+              }}
+            >
+              View My Bets
+            </Button>
+          )}
           <Button 
             variant="outlined" 
             size="large" 

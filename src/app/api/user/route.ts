@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import connectDB from '@/lib/db';
-import { verifyWhopUser, getWhopCompany, getWhopUser } from '@/lib/whop';
+import { verifyWhopUser, getWhopCompany, getWhopUser, userHasCompanyAccess } from '@/lib/whop';
 import { User, MembershipPlan } from '@/models/User';
 import { Bet, IBet } from '@/models/Bet';
 import { calculateStats } from '@/lib/stats';
@@ -36,6 +36,11 @@ export async function GET() {
     }
 
     const { userId: verifiedUserId, companyId } = authInfo;
+
+    const accessRole = companyId ? await userHasCompanyAccess({ userId: verifiedUserId, companyId }) : 'none';
+    if (accessRole !== 'owner' && accessRole !== 'admin') {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
 
     // Find or create user
     let user = await User.findOne({ whopUserId: verifiedUserId, companyId: companyId || 'default' });
@@ -135,6 +140,12 @@ export async function PATCH(request: NextRequest) {
     }
 
     const { userId, companyId } = authInfo;
+
+    const accessRole = companyId ? await userHasCompanyAccess({ userId, companyId }) : 'none';
+    if (accessRole !== 'owner' && accessRole !== 'admin') {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
     const body = await request.json();
     const validated = updateUserSchema.parse(body);
 

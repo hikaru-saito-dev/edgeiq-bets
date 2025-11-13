@@ -60,15 +60,8 @@ interface BetCardProps {
 
 export default function BetCard({ bet, onUpdate }: BetCardProps) {
   const toast = useToast();
-  const [editOpen, setEditOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [showParlayLegs, setShowParlayLegs] = useState(false);
-  const [formData, setFormData] = useState({
-    eventName: bet.eventName,
-    startTime: new Date(bet.startTime).toISOString().slice(0, 16),
-    odds: bet.odds,
-    units: bet.units,
-  });
 
   const getResultColor = () => {
     switch (bet.result) {
@@ -88,35 +81,6 @@ export default function BetCard({ bet, onUpdate }: BetCardProps) {
     }
   };
 
-  const handleEdit = async () => {
-    setLoading(true);
-    try {
-      const response = await fetch('/api/bets', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          betId: bet._id,
-          ...formData,
-          startTime: new Date(formData.startTime).toISOString(),
-        }),
-      });
-
-      if (!response.ok) {
-        const error = await response.json().catch(() => ({ error: 'Failed to update bet' }));
-        toast.showError(error.error || 'Failed to update bet');
-        return;
-      }
-
-      setEditOpen(false);
-      toast.showSuccess('Bet updated successfully!');
-      onUpdate?.();
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to update bet';
-      toast.showError(message);
-    } finally {
-      setLoading(false);
-    }
-  };
 
 
   // Calculate potential payout using utility function
@@ -331,17 +295,7 @@ export default function BetCard({ bet, onUpdate }: BetCardProps) {
           )}
 
           <Box display="flex" gap={1} justifyContent="flex-end">
-            {!bet.locked && (
-              <Button
-                variant="outlined"
-                size="small"
-                startIcon={<EditIcon />}
-                onClick={() => setEditOpen(true)}
-                color="primary"
-              >
-                Edit
-              </Button>
-            )}
+            
             {/* Manual settlement disabled - bets are auto-settled */}
             {/* Delete button, only for bets that are not locked, not settled, and before start time */}
             {bet.result === 'pending' && (() => {
@@ -392,64 +346,6 @@ export default function BetCard({ bet, onUpdate }: BetCardProps) {
           </Box>
         </CardContent>
       </Card>
-
-      {/* Edit Dialog */}
-      <Dialog open={editOpen} onClose={() => setEditOpen(false)} maxWidth="sm" fullWidth>
-        <DialogTitle>Edit Bet</DialogTitle>
-        <DialogContent>
-          <TextField
-            fullWidth
-            label="Event Name"
-            value={formData.eventName}
-            onChange={(e) => setFormData({ ...formData, eventName: e.target.value })}
-            margin="normal"
-          />
-          <TextField
-            fullWidth
-            label="Start Time"
-            type="datetime-local"
-            value={formData.startTime}
-            onChange={(e) => setFormData({ ...formData, startTime: e.target.value })}
-            margin="normal"
-            InputLabelProps={{ shrink: true }}
-          />
-          <TextField
-            fullWidth
-            label="Odds"
-            type="number"
-            value={formData.odds}
-            onChange={(e) => setFormData({ ...formData, odds: parseFloat(e.target.value) })}
-            margin="normal"
-            inputProps={{ min: 1.01, step: 0.01 }}
-          />
-          <TextField
-            fullWidth
-            label="Units"
-            type="number"
-            value={formData.units}
-            onChange={(e) => setFormData({ ...formData, units: parseFloat(e.target.value) })}
-            margin="normal"
-            inputProps={{ min: 0.01, step: 0.01 }}
-          />
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setEditOpen(false)}>Cancel</Button>
-          <Button 
-            onClick={handleEdit} 
-            variant="contained" 
-            disabled={loading}
-            startIcon={loading ? <CircularProgress size={16} sx={{ color: 'white' }} /> : null}
-            sx={{
-              background: loading ? 'rgba(99, 102, 241, 0.5)' : 'linear-gradient(135deg, #6366f1 0%, #ec4899 100%)',
-              '&:hover': {
-                background: loading ? 'rgba(99, 102, 241, 0.5)' : 'linear-gradient(135deg, #4f46e5 0%, #db2777 100%)',
-              },
-            }}
-          >
-            {loading ? 'Saving...' : 'Save'}
-          </Button>
-        </DialogActions>
-      </Dialog>
 
     </>
   );

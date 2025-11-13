@@ -93,6 +93,10 @@ type WhopSdkShape = {
       company?: {
         members?: {
           totalCount: number;
+          nodes?: Array<{
+            role?: string | null;
+            user?: { id?: string | null } | null;
+          } | null>;
         };
       } | null;
     }>;
@@ -425,5 +429,22 @@ export async function getWhopCompanyData(companyId: string): Promise<{
     membershipPlans,
     memberCount,
   };
+}
+
+export async function userHasCompanyAccess({ userId, companyId }: { userId: string; companyId: string }): Promise<'owner' | 'admin' | 'member' | 'none'> {
+  try {
+    const whopSdk = getWhopSdk(companyId);
+    const response = await whopSdk.companies.listMembers({ companyId, first: 100 });
+    const members = response.company?.members?.nodes ?? [];
+    const match = members.find((member) => member?.user?.id === userId);
+    if (!match) return 'none';
+
+    if (match.role === 'owner') return 'owner';
+    if (match.role === 'admin') return 'admin';
+    return 'member';
+  } catch (error) {
+    console.error('Error checking company access:', error);
+    return 'none';
+  }
 }
 
