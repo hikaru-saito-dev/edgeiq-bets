@@ -14,6 +14,12 @@ import {
   FormControl,
   Select,
   MenuItem,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogContentText,
+  DialogActions,
+  Alert,
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import BetCard from '@/components/BetCard';
@@ -55,6 +61,8 @@ export default function BetsPage() {
   const [bets, setBets] = useState<Bet[]>([]);
   const [loading, setLoading] = useState(true);
   const [createOpen, setCreateOpen] = useState(false);
+  const [warningOpen, setWarningOpen] = useState(false);
+  const [hasCompanyId, setHasCompanyId] = useState<boolean | null>(null);
   const { isAuthorized, loading: accessLoading } = useAccess();
 
   // Pagination & search
@@ -66,8 +74,33 @@ export default function BetsPage() {
   useEffect(() => {
     if (!isAuthorized) return;
     fetchBets();
+    fetchUserProfile();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page, pageSize, isAuthorized]);
+
+  // Refresh companyId check when window regains focus (user might have updated profile in another tab)
+  useEffect(() => {
+    const handleFocus = () => {
+      if (isAuthorized) {
+        fetchUserProfile();
+      }
+    };
+    window.addEventListener('focus', handleFocus);
+    return () => window.removeEventListener('focus', handleFocus);
+  }, [isAuthorized]);
+
+  const fetchUserProfile = async () => {
+    if (!isAuthorized) return;
+    try {
+      const response = await fetch('/api/user');
+      if (response.ok) {
+        const data = await response.json();
+        setHasCompanyId(!!data.user?.companyId);
+      }
+    } catch (error) {
+      console.error('Error fetching user profile:', error);
+    }
+  };
 
   // Debounced search-as-you-type
   useEffect(() => {
@@ -191,7 +224,13 @@ export default function BetsPage() {
             variant="contained"
             size="large"
             startIcon={<AddIcon />}
-            onClick={() => setCreateOpen(true)}
+            onClick={() => {
+              if (hasCompanyId === false) {
+                setWarningOpen(true);
+              } else {
+                setCreateOpen(true);
+              }
+            }}
             sx={{ 
               px: 3, 
               py: 1.5,
@@ -317,7 +356,13 @@ export default function BetsPage() {
             <Button
               variant="contained"
               startIcon={<AddIcon />}
-              onClick={() => setCreateOpen(true)}
+              onClick={() => {
+                if (hasCompanyId === false) {
+                  setWarningOpen(true);
+                } else {
+                  setCreateOpen(true);
+                }
+              }}
               sx={{
                 background: 'linear-gradient(135deg, #6366f1 0%, #ec4899 100%)',
                 boxShadow: '0 8px 32px rgba(99, 102, 241, 0.3)',
@@ -367,6 +412,76 @@ export default function BetsPage() {
         onClose={() => setCreateOpen(false)}
         onSuccess={() => { setPage(1); fetchBets(); }}
       />
+
+      {/* Warning Dialog for Missing Company ID */}
+      <Dialog
+        open={warningOpen}
+        onClose={() => setWarningOpen(false)}
+        maxWidth="sm"
+        fullWidth
+        PaperProps={{
+          sx: {
+            background: 'linear-gradient(135deg, rgba(15, 15, 35, 0.95), rgba(30, 30, 60, 0.9))',
+            backdropFilter: 'blur(20px)',
+            border: '1px solid rgba(239, 68, 68, 0.3)',
+            borderRadius: 3,
+          },
+        }}
+      >
+        <DialogTitle sx={{ color: '#ffffff', fontWeight: 600 }}>
+          Company ID Required
+        </DialogTitle>
+        <DialogContent>
+          <Alert 
+            severity="warning" 
+            sx={{ 
+              mb: 2,
+              backgroundColor: 'rgba(239, 68, 68, 0.1)',
+              border: '1px solid rgba(239, 68, 68, 0.3)',
+              '& .MuiAlert-icon': {
+                color: '#ef4444',
+              },
+            }}
+          >
+            You need to set up your Company ID before creating bets.
+          </Alert>
+          <DialogContentText sx={{ color: '#a1a1aa', mb: 2 }}>
+            To create bets and participate in the leaderboard, you must first set your Company ID in your profile settings.
+          </DialogContentText>
+          <DialogContentText sx={{ color: '#a1a1aa' }}>
+            Please go to your Profile page and enter your Company ID, then try creating a bet again.
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions sx={{ p: 2, gap: 1 }}>
+          <Button
+            onClick={() => setWarningOpen(false)}
+            sx={{
+              color: '#a1a1aa',
+              '&:hover': {
+                backgroundColor: 'rgba(255, 255, 255, 0.05)',
+              },
+            }}
+          >
+            Cancel
+          </Button>
+          <Button
+            variant="contained"
+            onClick={() => {
+              setWarningOpen(false);
+              window.location.href = '/profile';
+            }}
+            sx={{
+              background: 'linear-gradient(135deg, #6366f1 0%, #ec4899 100%)',
+              color: '#ffffff',
+              '&:hover': {
+                background: 'linear-gradient(135deg, #4f46e5 0%, #db2777 100%)',
+              },
+            }}
+          >
+            Go to Profile
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Container>
   );
 }

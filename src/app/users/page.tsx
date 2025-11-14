@@ -404,7 +404,8 @@ export default function UsersPage() {
                                 },
                               }}
                             >
-                              {currentRole === 'companyOwner' && <MenuItem value="owner">Owner</MenuItem>}
+                              {currentRole === 'companyOwner' && <MenuItem value="companyOwner">Company Owner</MenuItem>}
+                              <MenuItem value="owner">Owner</MenuItem>
                               <MenuItem value="admin">Admin</MenuItem>
                               <MenuItem value="member">Member</MenuItem>
                             </Select>
