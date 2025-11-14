@@ -120,6 +120,80 @@ async function getGameScore(providerEventId: string, sportKey: string): Promise<
   }
 }
 
+function clamp(value: number, min: number, max: number): number {
+  return Math.max(min, Math.min(max, value));
+}
+
+function getFirstWeekdayUtc(year: number, month: number, weekday: number): Date {
+  const date = new Date(Date.UTC(year, month, 1));
+  const currentWeekday = date.getUTCDay();
+  const diff = (weekday - currentWeekday + 7) % 7;
+  date.setUTCDate(1 + diff);
+  return date;
+}
+
+function addDaysUtc(date: Date, days: number): Date {
+  const result = new Date(date.getTime());
+  result.setUTCDate(result.getUTCDate() + days);
+  return result;
+}
+
+function weeksBetween(start: Date, end: Date): number {
+  const msPerWeek = 1000 * 60 * 60 * 24 * 7;
+  return Math.floor((end.getTime() - start.getTime()) / msPerWeek);
+}
+
+function getNFLSeasonInfo(gameDate: Date): { season: number; seasonType: 'PRE' | 'REG' | 'POST'; week: number } {
+  const date = new Date(gameDate);
+  const month = date.getUTCMonth();
+  const year = date.getUTCFullYear();
+
+  // Preseason games occur in August
+  if (month === 7) {
+    const season = year;
+    const preseasonStart = getFirstWeekdayUtc(season, 7, 4); // First Thursday in August
+    const weeks = weeksBetween(preseasonStart, date);
+    return {
+      season,
+      seasonType: 'PRE',
+      week: clamp(weeks + 1, 1, 4),
+    };
+  }
+
+  // Regular season runs roughly September (month 8) through December (11)
+  if (month >= 8 && month <= 11) {
+    const season = year;
+    const laborDay = getFirstWeekdayUtc(season, 8, 1); // First Monday in September
+    const seasonStart = addDaysUtc(laborDay, 3); // Thursday after Labor Day
+    const weeks = weeksBetween(seasonStart, date);
+    return {
+      season,
+      seasonType: 'REG',
+      week: clamp(weeks + 1, 1, 18),
+    };
+  }
+
+  // Postseason games occur January/February of the following calendar year
+  if (month <= 1) {
+    const season = year - 1;
+    const postseasonStart = getFirstWeekdayUtc(year, 0, 6); // First Saturday in January
+    const weeks = weeksBetween(postseasonStart, date);
+    return {
+      season,
+      seasonType: 'POST',
+      week: clamp(weeks + 1, 1, 5),
+    };
+  }
+
+  // Offseason (March-July) - treat as upcoming regular season for safety
+  const fallbackSeason = month < 7 ? year - 1 : year;
+  return {
+    season: fallbackSeason,
+    seasonType: 'REG',
+    week: 1,
+  };
+}
+
 // Get player stats from SportsData.io
 async function getPlayerStats(
   playerId: number,
@@ -142,12 +216,10 @@ async function getPlayerStats(
 
     // For NFL, we need season and week
     if (sportPath === 'nfl') {
-      const season = month >= 9 ? year : year - 1;
-      const seasonStart = new Date(season, 8, 1);
-      const daysDiff = Math.floor((gameDate.getTime() - seasonStart.getTime()) / (1000 * 60 * 60 * 24));
-      const week = Math.max(1, Math.min(18, Math.floor(daysDiff / 7) + 1));
+      const { season, seasonType, week } = getNFLSeasonInfo(gameDate);
+      const seasonSegment = `${season}${seasonType}`;
 
-      const url = `https://api.sportsdata.io/v3/${sportPath}/stats/json/PlayerGameStatsByPlayerID/${season}/${week}/${playerId}?key=${apiKey}`;
+      const url = `https://api.sportsdata.io/v3/${sportPath}/stats/json/PlayerGameStatsByPlayerID/${seasonSegment}/${week}/${playerId}?key=${apiKey}`;
       const response = await fetch(url, {
         next: { revalidate: 3600 },
       });
