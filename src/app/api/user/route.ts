@@ -130,8 +130,11 @@ export async function GET() {
       }
     }
 
-    // Get all bets and calculate current stats
-    const bets = await Bet.find({ userId: user._id }).lean();
+    // Get all bets (excluding parlay legs) and calculate current stats
+    const bets = await Bet.find({ 
+      userId: user._id,
+      parlayId: { $exists: false } // Exclude parlay leg bets
+    }).lean();
     const stats = calculateStats(bets as unknown as IBet[]);
 
     return NextResponse.json({
