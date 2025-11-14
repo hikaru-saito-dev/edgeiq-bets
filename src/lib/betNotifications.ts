@@ -475,7 +475,7 @@ async function getParlayLegDetails(bet: IBet): Promise<string[]> {
   }
 }
 
-export async function notifyBetCreated(bet: IBet, user?: IUser | null, companyId?: string): Promise<void> {
+export async function notifyBetCreated(bet: IBet, user?: IUser | null, _companyId?: string): Promise<void> {
   // Send notification only to the specific user who created the bet
   if (!user || (user.role !== 'companyOwner' && user.role !== 'owner' && user.role !== 'admin')) {
     return;

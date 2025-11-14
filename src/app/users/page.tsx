@@ -47,7 +47,7 @@ export default function UsersPage() {
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState<string | null>(null);
-  const [roleChanges, setRoleChanges] = useState<Record<string, 'owner' | 'admin' | 'member'>>({});
+  const [roleChanges, setRoleChanges] = useState<Record<string, 'companyOwner' | 'owner' | 'admin' | 'member'>>({});
   
   // Pagination & search
   const [page, setPage] = useState(1);
