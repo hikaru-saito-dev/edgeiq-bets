@@ -198,7 +198,7 @@ export async function PATCH(request: NextRequest) {
         user.companyDescription = validated.companyDescription || undefined;
       }
       
-      // Only owners can opt-in to leaderboard
+      // Only owners and companyOwners can opt-in to leaderboard
       if (validated.optIn !== undefined) {
         user.optIn = validated.optIn;
       }

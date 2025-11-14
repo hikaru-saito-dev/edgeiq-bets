@@ -17,20 +17,20 @@ export async function GET(request: NextRequest) {
     const pageSize = Math.min(100, Math.max(1, parseInt(searchParams.get('pageSize') || '10', 10)));
     const search = (searchParams.get('search') || '').trim();
 
-    // Only show owners who opted in and have companyId set
+    // Only show owners and companyOwners who opted in and have companyId set
     const baseQuery: Record<string, unknown> = { 
       optIn: true,
-      role: 'owner',
+      role: { $in: ['owner', 'companyOwner'] },
       companyId: { $exists: true, $ne: null },
     };
     if (companyFilter) {
       baseQuery.companyId = companyFilter;
     }
 
-    // Get ALL owners who opted in (for global ranking calculation)
+    // Get ALL owners and companyOwners who opted in (for global ranking calculation)
     const allOwners = await User.find(baseQuery).lean();
 
-    // Calculate stats for each owner (aggregating all company bets)
+    // Calculate stats for each owner/companyOwner (aggregating all company bets)
     const allLeaderboardEntries = await Promise.all(
       allOwners.map(async (ownerRaw) => {
         const owner = ownerRaw as unknown as IUser;
