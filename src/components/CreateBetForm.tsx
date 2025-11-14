@@ -552,11 +552,11 @@ export default function CreateBetForm({ open, onClose, onSuccess }: CreateBetFor
       case 'ML':
         return (
           <FormControl fullWidth required>
-            <InputLabel sx={{ color: '#a1a1aa' }}>Team *</InputLabel>
+            <InputLabel sx={{ color: '#a1a1aa' }}>Team</InputLabel>
             <Select
             value={selection}
             onChange={(e) => setSelection(e.target.value)}
-              label="Team *"
+              label="Team"
               disabled={!selectedGame || availableTeams.length === 0}
             sx={{
                 color: '#ffffff',
@@ -584,11 +584,11 @@ export default function CreateBetForm({ open, onClose, onSuccess }: CreateBetFor
         return (
           <Box sx={{ display: 'flex', gap: 2, flexDirection: { xs: 'column', sm: 'row' } }}>
             <FormControl fullWidth required>
-              <InputLabel sx={{ color: '#a1a1aa' }}>Team *</InputLabel>
+              <InputLabel sx={{ color: '#a1a1aa' }}>Team</InputLabel>
               <Select
               value={selection}
               onChange={(e) => setSelection(e.target.value)}
-                label="Team *"
+                label="Team"
                 disabled={!selectedGame || availableTeams.length === 0}
               sx={{
                   color: '#ffffff',
@@ -645,11 +645,11 @@ export default function CreateBetForm({ open, onClose, onSuccess }: CreateBetFor
               }}
             />
             <FormControl fullWidth required>
-              <InputLabel sx={{ color: '#a1a1aa' }}>Over/Under *</InputLabel>
+              <InputLabel sx={{ color: '#a1a1aa' }}>Over/Under</InputLabel>
               <Select
                 value={overUnder}
                 onChange={(e) => setOverUnder(e.target.value as 'Over' | 'Under')}
-                label="Over/Under *"
+                label="Over/Under"
                 sx={{
                   color: '#ffffff',
                   '& .MuiOutlinedInput-notchedOutline': { borderColor: 'rgba(99, 102, 241, 0.3)' },
@@ -737,11 +737,11 @@ export default function CreateBetForm({ open, onClose, onSuccess }: CreateBetFor
               )}
             />
             <FormControl fullWidth required>
-              <InputLabel sx={{ color: '#a1a1aa' }}>Prop Type *</InputLabel>
+              <InputLabel sx={{ color: '#a1a1aa' }}>Prop Type</InputLabel>
               <Select
               value={statType}
               onChange={(e) => setStatType(e.target.value)}
-                label="Prop Type *"
+                label="Prop Type"
                 disabled={!selectedGame}
               sx={{
                   color: '#ffffff',
@@ -788,11 +788,11 @@ export default function CreateBetForm({ open, onClose, onSuccess }: CreateBetFor
                 }}
               />
               <FormControl fullWidth required>
-                <InputLabel sx={{ color: '#a1a1aa' }}>Over/Under *</InputLabel>
+                <InputLabel sx={{ color: '#a1a1aa' }}>Over/Under</InputLabel>
                 <Select
                   value={overUnder}
                   onChange={(e) => setOverUnder(e.target.value as 'Over' | 'Under')}
-                  label="Over/Under *"
+                  label="Over/Under"
                   sx={{
                     color: '#ffffff',
                     '& .MuiOutlinedInput-notchedOutline': { borderColor: 'rgba(99, 102, 241, 0.3)' },
