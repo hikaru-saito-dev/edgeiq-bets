@@ -140,6 +140,22 @@ const propTypesBySport: Record<string, string[]> = {
   ],
 };
 
+// Sports supported by SportsData.io for player props
+const SUPPORTED_PLAYER_PROP_SPORTS = new Set([
+  'americanfootball_nfl', // NFL
+  'americanfootball_ncaaf', // CFB
+  'basketball_ncaab', // CBB
+  'basketball_nba', // NBA
+  'icehockey_nhl', // NHL
+  'baseball_mlb', // MLB
+]);
+
+// Check if a sport is supported for player props
+function isSportSupportedForPlayerProps(sportKey?: string): boolean {
+  if (!sportKey) return false;
+  return SUPPORTED_PLAYER_PROP_SPORTS.has(sportKey);
+}
+
 // Helper function to get prop types for a sport
 function getPropTypesForSport(sportKey?: string, sport?: string): string[] {
   let propList: string[] | undefined;
@@ -343,6 +359,27 @@ export default function CreateBetForm({ open, onClose, onSuccess }: CreateBetFor
       setSearchingPlayers(false);
     }
   };
+
+  // Validate game support when Player Prop is selected
+  useEffect(() => {
+    if (marketType === 'Player Prop' && selectedGame) {
+      const sportKey = selectedGame.sportKey;
+      if (!isSportSupportedForPlayerProps(sportKey)) {
+        toast.showError(
+          'This game is not supported by SportsData.io for player props. ' +
+          'Please search for a game from NFL, CFB, CBB, NBA, NHL, or MLB.'
+        );
+        // Clear game selection and search query
+        setSelectedGame(null);
+        setGameSearchQuery('');
+        setPlayerName('');
+        setSelectedPlayer(null);
+        setPlayerResults([]);
+        setStatType('');
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [marketType, selectedGame]);
 
   // Debounced player search
   useEffect(() => {

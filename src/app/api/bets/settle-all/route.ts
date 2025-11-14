@@ -195,6 +195,33 @@ function getNFLSeasonInfo(gameDate: Date): { season: number; seasonType: 'PRE' |
   };
 }
 
+// Get CFB/CBB season and week info (similar to NFL)
+function getCFBSeasonInfo(gameDate: Date): { season: number; week: number } {
+  const date = new Date(gameDate);
+  const month = date.getUTCMonth();
+  const year = date.getUTCFullYear();
+  
+  // CFB season typically starts in late August/early September
+  // Regular season runs September through December
+  if (month >= 8 && month <= 11) {
+    const season = year;
+    // Approximate week calculation (CFB season starts around late August)
+    const seasonStart = new Date(Date.UTC(season, 7, 25)); // Late August
+    const daysDiff = Math.floor((date.getTime() - seasonStart.getTime()) / (1000 * 60 * 60 * 24));
+    const week = Math.max(1, Math.min(16, Math.floor(daysDiff / 7) + 1));
+    return { season, week };
+  }
+  
+  // Bowl season/postseason (December/January)
+  if (month === 11 || (month === 0 && date.getUTCDate() <= 15)) {
+    const season = month === 11 ? year : year - 1;
+    return { season, week: 17 }; // Bowl week
+  }
+  
+  // Default to current year, week 1
+  return { season: year, week: 1 };
+}
+
 // Get player stats from SportsData.io
 async function getPlayerStats(
   playerId: number,
@@ -215,7 +242,7 @@ async function getPlayerStats(
     const day = gameDate.getDate();
     const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
 
-    // For NFL, we need season and week
+    // NFL: PlayerGameStatsByPlayerID/{season}{seasonType}/{week}/{playerId}
     if (sportPath === 'nfl') {
       const { season, seasonType, week } = getNFLSeasonInfo(gameDate);
       const seasonSegment = `${season}${seasonType}`;
@@ -243,56 +270,66 @@ async function getPlayerStats(
       } else {
         console.warn(`Failed to fetch NFL player stats: ${response.status} ${response.statusText}`);
       }
-    } else {
-      // For NBA, MLB, NHL - try PlayerGameStatsByDate endpoint
-      try {
-        const url = `https://api.sportsdata.io/v3/${sportPath}/stats/json/PlayerGameStatsByDate/${dateStr}?key=${apiKey}`;
-        const response = await fetch(url, {
-          next: { revalidate: 3600 },
-        });
-
-        if (response.ok) {
-          const allPlayerStats = await response.json();
-          
-          if (Array.isArray(allPlayerStats)) {
-            const playerStats = allPlayerStats.find((stat: { PlayerID?: number }) => 
-              stat.PlayerID === playerId
-            );
-            
-            if (playerStats && typeof playerStats === 'object') {
-              return playerStats as Record<string, number>;
-            }
-          }
-        }
-      } catch (error) {
-        console.warn(`Failed to fetch player stats by date for ${sportPath}:`, error);
-      }
+    }
+    // CFB & CBB: PlayerGameStatsByPlayer/{season}/{week}/{playerId}
+    else if (sportPath === 'cfb' || sportPath === 'cbb') {
+      const { season, week } = getCFBSeasonInfo(gameDate);
       
-      // Fallback: Try PlayerGameStatsByPlayerID with date (if supported)
-      try {
-        const url = `https://api.sportsdata.io/v3/${sportPath}/stats/json/PlayerGameStatsByPlayerID/${dateStr}/${playerId}?key=${apiKey}`;
-        const response = await fetch(url, {
-          next: { revalidate: 3600 },
-        });
+      const url = `https://api.sportsdata.io/v3/${sportPath}/stats/json/PlayerGameStatsByPlayer/${season}/${week}/${playerId}?key=${apiKey}`;
+      const response = await fetch(url, {
+        next: { revalidate: 3600 },
+      });
 
-        if (response.ok) {
-          const stats = await response.json();
+      if (response.ok) {
+        const stats = await response.json();
+        
+        if (Array.isArray(stats)) {
+          const gameStats = stats.find((game: { GameDate?: string; Date?: string }) => {
+            const gameDateStr = game.GameDate || game.Date;
+            return gameDateStr && gameDateStr.startsWith(dateStr);
+          });
           
-          if (Array.isArray(stats)) {
-            const gameStats = stats.find((game: { GameDate?: string; Date?: string }) => {
-              const gameDateStr = game.GameDate || game.Date;
-              return gameDateStr && gameDateStr.startsWith(dateStr);
-            });
-            
-            if (gameStats && typeof gameStats === 'object') {
-              return gameStats as Record<string, number>;
-            }
-          } else if (stats && typeof stats === 'object') {
+          if (gameStats && typeof gameStats === 'object') {
+            return gameStats as Record<string, number>;
+          }
+        } else if (stats && typeof stats === 'object') {
+          return stats as Record<string, number>;
+        }
+      } else {
+        console.warn(`Failed to fetch ${sportPath.toUpperCase()} player stats: ${response.status} ${response.statusText}`);
+      }
+    }
+    // NBA, NHL, MLB: PlayerPropsByPlayerID/{date}/{playerId}
+    else if (sportPath === 'nba' || sportPath === 'nhl' || sportPath === 'mlb') {
+      const url = `https://api.sportsdata.io/v3/${sportPath}/odds/json/PlayerPropsByPlayerID/${dateStr}/${playerId}?key=${apiKey}`;
+      const response = await fetch(url, {
+        next: { revalidate: 3600 },
+      });
+
+      if (response.ok) {
+        const stats = await response.json();
+        
+        // PlayerPropsByPlayerID might return different structure, handle both array and object
+        if (Array.isArray(stats)) {
+          // Find the stat object for this player
+          const playerStats = stats.find((stat: { PlayerID?: number; GameDate?: string; Date?: string }) => {
+            if (stat.PlayerID !== playerId) return false;
+            const gameDateStr = stat.GameDate || stat.Date;
+            return gameDateStr && gameDateStr.startsWith(dateStr);
+          });
+          
+          if (playerStats && typeof playerStats === 'object') {
+            return playerStats as Record<string, number>;
+          }
+        } else if (stats && typeof stats === 'object') {
+          // Check if it's the right player and date
+          const gameDateStr = (stats as { GameDate?: string; Date?: string }).GameDate || (stats as { GameDate?: string; Date?: string }).Date;
+          if (gameDateStr && gameDateStr.startsWith(dateStr)) {
             return stats as Record<string, number>;
           }
         }
-      } catch (error) {
-        console.warn(`Failed to fetch player stats by player ID for ${sportPath}:`, error);
+      } else {
+        console.warn(`Failed to fetch ${sportPath.toUpperCase()} player props: ${response.status} ${response.statusText}`);
       }
     }
 

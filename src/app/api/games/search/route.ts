@@ -4,47 +4,21 @@ export const runtime = 'nodejs';
 
 /**
  * Sports supported by BOTH The Odds API and SportsData.io
- * Based on SportsData.io supported leagues: NFL, MLB, NBA, NHL, College Football, 
- * College Basketball, Golf, NASCAR, Soccer, MMA, WNBA, College Women's Basketball, Tennis
+ * Only sports with player stats endpoints: NFL, CFB, CBB, NBA, NHL, MLB
  */
 const SUPPORTED_SPORT_KEYS = new Set([
   // NFL
   'americanfootball_nfl',
-  // MLB
-  'baseball_mlb',
+  // College Football (CFB)
+  'americanfootball_ncaaf',
+  // College Basketball (CBB)
+  'basketball_ncaab',
   // NBA
   'basketball_nba',
   // NHL
   'icehockey_nhl',
-  // College Football
-  'americanfootball_ncaaf',
-  // College Basketball
-  'basketball_ncaab',
-  // College Women's Basketball
-  'basketball_ncaaw',
-  // WNBA
-  'basketball_wnba',
-  // Golf (various tournaments)
-  'golf_masters_tournament',
-  'golf_pga_championship',
-  'golf_us_open',
-  'golf_the_open_championship',
-  // NASCAR
-  'motorsport_nascar_cup',
-  'motorsport_nascar_xfinity',
-  'motorsport_nascar_truck',
-  // Soccer (major leagues)
-  'soccer_usa_mls',
-  'soccer_england_premier_league',
-  'soccer_spain_la_liga',
-  'soccer_germany_bundesliga',
-  'soccer_italy_serie_a',
-  'soccer_france_ligue_one',
-  // MMA
-  'mma_mixed_martial_arts',
-  // Tennis
-  'tennis_atp',
-  'tennis_wta',
+  // MLB
+  'baseball_mlb',
 ]);
 
 /**
@@ -99,11 +73,10 @@ export async function GET(request: NextRequest) {
     const availableSports = await getAvailableSports(apiKey);
     
     // Filter to only active sports without outrights (we want games, not futures)
-    // AND only sports supported by both The Odds API and SportsData.io
+    // Show ALL games from The Odds API (filtering by SportsData.io support happens on frontend)
     const activeSports = availableSports.filter(s => 
       s.active && 
-      !s.has_outrights &&
-      isSportSupportedByBothAPIs(s.key)
+      !s.has_outrights
     );
 
     // Smart sport filtering based on query
@@ -192,13 +165,8 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // Filter games: only include games from sports supported by both APIs
-    let filteredGames = allGames.filter(game => {
-      const sportKey = game.sportKey || '';
-      return isSportSupportedByBothAPIs(sportKey);
-    });
-
     // Filter games based on query
+    let filteredGames = allGames;
     if (query) {
       const lowerQuery = query.toLowerCase().trim();
       filteredGames = filteredGames.filter(game => 
