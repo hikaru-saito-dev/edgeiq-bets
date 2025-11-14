@@ -509,14 +509,14 @@ export default function ProfileForm() {
           }}
         />
 
-        {/* Notification Webhooks - Only for owners */}
-        {role === 'owner' && (
+        {/* Notification Webhooks - For owners and admins */}
+        {(role === 'owner' || role === 'admin') && (
           <>
             <Typography variant="h6" sx={{ color: '#ffffff', mt: 3, mb: 2, fontWeight: 600 }}>
               Notification Webhooks
             </Typography>
             <Typography variant="body2" sx={{ color: '#a1a1aa', mb: 2 }}>
-              Configure webhook URLs to receive bet notifications. Only owners can configure webhooks.
+              Configure webhook URLs to receive bet notifications.
             </Typography>
         <TextField
           fullWidth

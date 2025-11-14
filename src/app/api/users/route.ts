@@ -52,8 +52,9 @@ export async function GET(request: NextRequest) {
     const pageSize = Math.min(100, Math.max(1, parseInt(searchParams.get('pageSize') || '10', 10)));
     const search = (searchParams.get('search') || '').trim();
 
-    // Build query
-    const query: Record<string, unknown> = { companyId };
+    // Build query - show all users (not just those with companyId)
+    // This allows owners to see all users and assign companyId to them
+    const query: Record<string, unknown> = {};
 
     if (search) {
       const regex = new RegExp(search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');

@@ -269,7 +269,40 @@ async function sendWebhookMessage(message: string, webhookUrl: string): Promise<
 
 
 /**
+ * Send message to a specific user's webhooks
+ * 
+ * @param message - The formatted message to send
+ * @param user - The user to send the message to (must be owner or admin)
+ */
+async function sendMessageToUser(message: string, user: IUser | null | undefined): Promise<void> {
+  if (!user || (user.role !== 'owner' && user.role !== 'admin')) {
+    return;
+  }
+
+  try {
+    // Build array of webhook promises to send to
+    const webhookPromises: Promise<void>[] = [];
+
+    if (user.discordWebhookUrl) {
+      webhookPromises.push(sendWebhookMessage(message, user.discordWebhookUrl));
+    }
+    if (user.whopWebhookUrl) {
+      webhookPromises.push(sendWebhookMessage(message, user.whopWebhookUrl));
+    }
+
+    // Send to all configured webhooks in parallel
+    // Use Promise.allSettled so if one fails, the others still work
+    if (webhookPromises.length > 0) {
+      await Promise.allSettled(webhookPromises);
+    }
+  } catch {
+    // Silently fail to prevent breaking bet operations
+  }
+}
+
+/**
  * Main send message function - sends to all owner/admin webhooks for the company
+ * (Kept for backward compatibility, but prefer sendMessageToUser for new code)
  * 
  * @param message - The formatted message to send
  * @param companyId - Company ID to find owners/admins
@@ -443,8 +476,10 @@ async function getParlayLegDetails(bet: IBet): Promise<string[]> {
 }
 
 export async function notifyBetCreated(bet: IBet, user?: IUser | null, companyId?: string): Promise<void> {
-  const finalCompanyId = companyId || (user?.companyId as string | undefined) || bet.companyId;
-  if (!finalCompanyId) return;
+  // Send notification only to the specific user who created the bet
+  if (!user || (user.role !== 'owner' && user.role !== 'admin')) {
+    return;
+  }
 
   const messageLines = [
     '🆕 **Bet Created**',
@@ -473,12 +508,14 @@ export async function notifyBetCreated(bet: IBet, user?: IUser | null, companyId
     }
   }
 
-  await sendMessage(messageLines.join('\n'), finalCompanyId);
+  await sendMessageToUser(messageLines.join('\n'), user);
 }
 
 export async function notifyBetUpdated(bet: IBet, user?: IUser | null, updatedFields?: Record<string, unknown>): Promise<void> {
-  const companyId = bet.companyId || (user?.companyId as string | undefined);
-  if (!companyId) return;
+  // Send notification only to the specific user who updated the bet
+  if (!user || (user.role !== 'owner' && user.role !== 'admin')) {
+    return;
+  }
 
   const lines = [
     '✏️ **Bet Updated**',
@@ -506,12 +543,14 @@ export async function notifyBetUpdated(bet: IBet, user?: IUser | null, updatedFi
     }
   }
 
-  await sendMessage(lines.join('\n'), companyId);
+  await sendMessageToUser(lines.join('\n'), user);
 }
 
 export async function notifyBetDeleted(bet: IBet, user?: IUser | null): Promise<void> {
-  const companyId = bet.companyId || (user?.companyId as string | undefined);
-  if (!companyId) return;
+  // Send notification only to the specific user who deleted the bet
+  if (!user || (user.role !== 'owner' && user.role !== 'admin')) {
+    return;
+  }
 
   const message = [
     '🗑️ **Bet Deleted**',
@@ -522,27 +561,28 @@ export async function notifyBetDeleted(bet: IBet, user?: IUser | null): Promise<
     `Odds: ${formatOdds(bet)}`,
   ].join('\n');
 
-  await sendMessage(message, companyId);
+  await sendMessageToUser(message, user);
 }
 
 export async function notifyBetSettled(bet: IBet, result: IBet['result'], user?: IUser | null): Promise<void> {
-  const companyId = bet.companyId || (user?.companyId as string | undefined);
-  if (!companyId) return;
-
-  // Check if user wants settlement notifications
-  let userForCheck = user;
-  if (!userForCheck && bet.userId) {
+  // Find the user who owns this bet (for settlement notifications)
+  let userForNotification = user;
+  if (!userForNotification && bet.userId) {
     try {
       await connectDB();
       const { User } = await import('@/models/User');
-      userForCheck = await User.findById(bet.userId).lean() as unknown as IUser | null;
+      userForNotification = await User.findById(bet.userId).lean() as unknown as IUser | null;
     } catch {
-      // If we can't fetch user, continue without checking preference
+      // If we can't fetch user, return early
+      return;
     }
   }
 
-  // Only send if user has notifyOnSettlement enabled
-  if (!userForCheck?.notifyOnSettlement) {
+  // Only send if user exists, is owner/admin, and has notifyOnSettlement enabled
+  if (!userForNotification || (userForNotification.role !== 'owner' && userForNotification.role !== 'admin')) {
+    return;
+  }
+  if (!userForNotification.notifyOnSettlement) {
     return;
   }
 
@@ -588,7 +628,7 @@ export async function notifyBetSettled(bet: IBet, result: IBet['result'], user?:
 
   const messageLines = [
     `${outcomeEmoji[result]} **Bet Settled – ${result.toUpperCase()}**`,
-    `User: ${formatUser(userForCheck)}`,
+    `User: ${formatUser(userForNotification)}`,
     `Event: ${getEventLabel(bet)}`,
     `Market: ${getMarketLabel(bet)}`,
     `Stake: ${formatUnits(bet.units)}`,
@@ -606,19 +646,8 @@ export async function notifyBetSettled(bet: IBet, result: IBet['result'], user?:
 
   const message = messageLines.join('\n');
 
-  // Send to user's webhooks if they have notifyOnSettlement enabled
-  const webhookPromises: Promise<void>[] = [];
-  if (userForCheck.discordWebhookUrl) {
-    webhookPromises.push(sendWebhookMessage(message, userForCheck.discordWebhookUrl));
-  }
-  if (userForCheck.whopWebhookUrl) {
-    webhookPromises.push(sendWebhookMessage(message, userForCheck.whopWebhookUrl));
-  }
-
-  // Send to all configured webhooks in parallel
-  if (webhookPromises.length > 0) {
-    await Promise.allSettled(webhookPromises);
-  }
+  // Send to the specific user's webhooks
+  await sendMessageToUser(message, userForNotification);
 }
 
 
