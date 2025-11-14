@@ -455,7 +455,7 @@ export async function getUserRoleFromDB({ userId, companyId }: { userId: string;
     if (!user) return 'none';
     
     return user.role || 'member';
-  } catch (error) {
+  } catch {
     return 'none';
   }
 }

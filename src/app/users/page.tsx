@@ -102,7 +102,7 @@ export default function UsersPage() {
       const data = await response.json();
       setUsers(data.users || []);
       setTotalPages(data.totalPages || 1);
-    } catch (error) {
+    } catch {
       toast.showError('Failed to load users');
     } finally {
       setLoading(false);
@@ -147,7 +147,7 @@ export default function UsersPage() {
         return updated;
       });
       await fetchUsers();
-    } catch (error) {
+    } catch {
       toast.showError('Failed to update role');
     } finally {
       setUpdating(null);

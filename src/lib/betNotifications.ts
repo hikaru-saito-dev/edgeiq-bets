@@ -261,7 +261,7 @@ async function sendWebhookMessage(message: string, webhookUrl: string): Promise<
     
     // Non-2xx response - log but don't throw (don't interrupt bet operations)
     // Silently fail to prevent breaking bet creation/updates
-  } catch (error) {
+  } catch {
     // Network error or exception - silently fail
     // Don't log to avoid cluttering logs with webhook failures
   }
@@ -305,7 +305,7 @@ async function sendMessage(message: string, companyId?: string): Promise<void> {
     if (webhookPromises.length > 0) {
       await Promise.allSettled(webhookPromises);
     }
-  } catch (error) {
+  } catch {
     // Silently fail to prevent breaking bet operations
   }
 }

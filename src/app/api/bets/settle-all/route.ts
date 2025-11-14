@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import connectDB from '@/lib/db';
 import { Bet, IBet } from '@/models/Bet';
 import { User } from '@/models/User';
@@ -253,7 +253,7 @@ async function getPlayerStats(
   playerId: number,
   sport: string,
   gameDate: Date,
-  providerEventId?: string
+  _providerEventId?: string
 ): Promise<Record<string, number> | null> {
   try {
     const apiKey = process.env.PLAYER_API_KEY;
@@ -589,7 +589,7 @@ async function settleBet(bet: IBet): Promise<'win' | 'loss' | 'push' | 'void' | 
  * Auto-settle all pending bets that have completed games
  * This endpoint can be called by a cron job
  */
-export async function POST(request: NextRequest) {
+export async function POST() {
   try {
     await connectDB();
 

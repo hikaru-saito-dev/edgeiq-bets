@@ -17,6 +17,8 @@ import {
   IconButton,
   Chip,
   Divider,
+  Tabs,
+  Tab,
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import DeleteIcon from '@mui/icons-material/Delete';
@@ -66,9 +68,12 @@ interface Bet {
 
 interface UserData {
   alias: string;
+  role: 'owner' | 'admin' | 'member';
   optIn: boolean;
   whopUserId: string;
-  companyId: string;
+  companyId?: string;
+  companyName?: string;
+  companyDescription?: string;
   whopName?: string;
   whopUsername?: string;
   whopDisplayName?: string;
@@ -89,7 +94,11 @@ interface UserData {
 export default function ProfileForm() {
   const toast = useToast();
   const [alias, setAlias] = useState('');
-  const [optIn, setOptIn] = useState(true);
+  const [role, setRole] = useState<'owner' | 'admin' | 'member'>('member');
+  const [companyId, setCompanyId] = useState('');
+  const [companyName, setCompanyName] = useState('');
+  const [companyDescription, setCompanyDescription] = useState('');
+  const [optIn, setOptIn] = useState(false);
   const [whopWebhookUrl, setWhopWebhookUrl] = useState('');
   const [discordWebhookUrl, setDiscordWebhookUrl] = useState('');
   const [notifyOnSettlement, setNotifyOnSettlement] = useState(false);
@@ -102,10 +111,12 @@ export default function ProfileForm() {
     isPremium?: boolean;
   }>>([]);
   const [userData, setUserData] = useState<UserData | null>(null);
-  const [stats, setStats] = useState<UserStats | null>(null);
+  const [personalStats, setPersonalStats] = useState<UserStats | null>(null);
+  const [companyStats, setCompanyStats] = useState<UserStats | null>(null);
   const [bets, setBets] = useState<Bet[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [activeTab, setActiveTab] = useState<'personal' | 'company'>('personal');
   const { isAuthorized, loading: accessLoading } = useAccess();
 
   useEffect(() => {
@@ -134,12 +145,17 @@ export default function ProfileForm() {
 
       setUserData(profileData.user);
       setAlias(profileData.user.alias || profileData.user.whopDisplayName || profileData.user.whopUsername || '');
-      setOptIn(profileData.user.optIn);
+      setRole(profileData.user.role || 'member');
+      setCompanyId(profileData.user.companyId || '');
+      setCompanyName(profileData.user.companyName || '');
+      setCompanyDescription(profileData.user.companyDescription || '');
+      setOptIn(profileData.user.optIn || false);
       setWhopWebhookUrl(profileData.user.whopWebhookUrl || '');
       setDiscordWebhookUrl(profileData.user.discordWebhookUrl || '');
       setNotifyOnSettlement(profileData.user.notifyOnSettlement ?? false);
       setMembershipPlans(profileData.user.membershipPlans || []);
-      setStats(profileData.stats);
+      setPersonalStats(profileData.personalStats);
+      setCompanyStats(profileData.companyStats || null);
       setBets(betsData.bets || []);
     } catch (error) {
       console.error('Error fetching profile:', error);
@@ -181,17 +197,36 @@ export default function ProfileForm() {
         plan.name.trim() && plan.url.trim() && plan.price.trim()
       );
 
+      const updateData: {
+        alias: string;
+        companyId?: string;
+        companyName?: string;
+        companyDescription?: string;
+        optIn?: boolean;
+        whopWebhookUrl?: string;
+        discordWebhookUrl?: string;
+        notifyOnSettlement?: boolean;
+        membershipPlans?: typeof membershipPlans;
+      } = {
+        alias,
+        companyId: companyId || undefined,
+        whopWebhookUrl: whopWebhookUrl || undefined,
+        discordWebhookUrl: discordWebhookUrl || undefined,
+        notifyOnSettlement,
+      };
+
+      // Only owners can set company info, opt-in, and membership plans
+      if (role === 'owner') {
+        updateData.companyName = companyName || undefined;
+        updateData.companyDescription = companyDescription || undefined;
+        updateData.optIn = optIn;
+        updateData.membershipPlans = validPlans;
+      }
+
       const response = await fetch('/api/user', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          alias,
-          optIn,
-          whopWebhookUrl: whopWebhookUrl || undefined,
-          discordWebhookUrl: discordWebhookUrl || undefined,
-          notifyOnSettlement,
-          membershipPlans: validPlans,
-        }),
+        body: JSON.stringify(updateData),
       });
 
       if (!response.ok) {
@@ -281,18 +316,18 @@ export default function ProfileForm() {
     );
   }
 
-  const pieData = stats ? [
-    { name: 'Wins', value: stats.wins, color: '#10b981' },
-    { name: 'Losses', value: stats.losses, color: '#ef4444' },
-    { name: 'Pushes', value: stats.pushes, color: '#f59e0b' },
-    { name: 'Voids', value: stats.voids, color: '#6b7280' },
+  const pieData = personalStats ? [
+    { name: 'Wins', value: personalStats.wins, color: '#10b981' },
+    { name: 'Losses', value: personalStats.losses, color: '#ef4444' },
+    { name: 'Pushes', value: personalStats.pushes, color: '#f59e0b' },
+    { name: 'Voids', value: personalStats.voids, color: '#6b7280' },
   ].filter(item => item.value > 0) : [];
 
-  const barData = stats ? [
-    { name: 'Wins', value: stats.wins, color: '#10b981' },
-    { name: 'Losses', value: stats.losses, color: '#ef4444' },
-    { name: 'Pushes', value: stats.pushes, color: '#f59e0b' },
-    { name: 'Voids', value: stats.voids, color: '#6b7280' },
+  const barData = personalStats ? [
+    { name: 'Wins', value: personalStats.wins, color: '#10b981' },
+    { name: 'Losses', value: personalStats.losses, color: '#ef4444' },
+    { name: 'Pushes', value: personalStats.pushes, color: '#f59e0b' },
+    { name: 'Voids', value: personalStats.voids, color: '#6b7280' },
   ] : [];
 
   // Prepare time series data for line charts
@@ -378,13 +413,46 @@ export default function ProfileForm() {
         </Box>
       </Box>
 
-      <Paper sx={{ p: 3, mb: 3, background: 'linear-gradient(135deg, rgba(15, 15, 35, 0.9), rgba(30, 30, 60, 0.8))', backdropFilter: 'blur(20px)', border: '1px solid rgba(99, 102, 241, 0.3)', borderRadius: 2 }}>
-        <TextField
-          fullWidth
-          label="Alias"
-          value={alias}
-          onChange={(e) => setAlias(e.target.value)}
-          margin="normal"
+      {/* Tabs for owners to switch between Personal and Company profiles */}
+      {role === 'owner' && (
+        <Paper sx={{ mb: 3, background: 'linear-gradient(135deg, rgba(15, 15, 35, 0.9), rgba(30, 30, 60, 0.8))', backdropFilter: 'blur(20px)', border: '1px solid rgba(99, 102, 241, 0.3)', borderRadius: 2 }}>
+          <Tabs
+            value={activeTab}
+            onChange={(_, newValue) => setActiveTab(newValue as 'personal' | 'company')}
+            sx={{
+              borderBottom: '1px solid rgba(99, 102, 241, 0.3)',
+              '& .MuiTab-root': {
+                color: '#a1a1aa',
+                textTransform: 'none',
+                fontSize: '1rem',
+                fontWeight: 500,
+                '&.Mui-selected': {
+                  color: '#6366f1',
+                },
+              },
+              '& .MuiTabs-indicator': {
+                backgroundColor: '#6366f1',
+              },
+            }}
+          >
+            <Tab label="Personal Profile" value="personal" />
+            <Tab label="Company Profile" value="company" />
+          </Tabs>
+        </Paper>
+      )}
+
+      {/* Personal Profile Tab */}
+      {(activeTab === 'personal' || role !== 'owner') && (
+        <Paper sx={{ p: 3, mb: 3, background: 'linear-gradient(135deg, rgba(15, 15, 35, 0.9), rgba(30, 30, 60, 0.8))', backdropFilter: 'blur(20px)', border: '1px solid rgba(99, 102, 241, 0.3)', borderRadius: 2 }}>
+          <Typography variant="h6" sx={{ color: '#ffffff', mb: 3, fontWeight: 600 }}>
+            Personal Profile
+          </Typography>
+          <TextField
+            fullWidth
+            label="Alias"
+            value={alias}
+            onChange={(e) => setAlias(e.target.value)}
+            margin="normal"
           sx={{
             '& .MuiOutlinedInput-root': {
               color: '#ffffff',
@@ -403,30 +471,53 @@ export default function ProfileForm() {
             },
           }}
         />
-        <FormControlLabel
-          control={
-            <Switch
-              checked={optIn}
-              onChange={(e) => setOptIn(e.target.checked)}
-              sx={{
-                '& .MuiSwitch-switchBase.Mui-checked': {
-                  color: '#6366f1',
-                },
-                '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': {
-                  backgroundColor: '#6366f1',
-                },
-              }}
-            />
-          }
-          label="Opt-in to Leaderboard"
-          sx={{ mt: 2, color: '#ffffff' }}
-        />
+        
+        {/* Company ID - Required for owners and admins */}
         <Typography variant="h6" sx={{ color: '#ffffff', mt: 3, mb: 2, fontWeight: 600 }}>
-          Notification Webhooks
+          Company Information
         </Typography>
         <Typography variant="body2" sx={{ color: '#a1a1aa', mb: 2 }}>
-          Configure webhook URLs to receive bet notifications. Only owners and admins will receive notifications.
+          Enter your company ID to create bets and participate in the leaderboard. This must be manually entered and cannot be automatically set.
         </Typography>
+        <TextField
+          fullWidth
+          label="Company ID *"
+          value={companyId}
+          onChange={(e) => setCompanyId(e.target.value)}
+          margin="normal"
+          required
+          helperText="Required to create bets and participate in leaderboard"
+          sx={{
+            '& .MuiOutlinedInput-root': {
+              color: '#ffffff',
+              '& fieldset': {
+                borderColor: 'rgba(99, 102, 241, 0.3)',
+              },
+              '&:hover fieldset': {
+                borderColor: 'rgba(99, 102, 241, 0.5)',
+              },
+              '&.Mui-focused fieldset': {
+                borderColor: '#6366f1',
+              },
+            },
+            '& .MuiInputLabel-root': {
+              color: '#a1a1aa',
+            },
+            '& .MuiFormHelperText-root': {
+              color: '#a1a1aa',
+            },
+          }}
+        />
+
+        {/* Notification Webhooks - Only for owners */}
+        {role === 'owner' && (
+          <>
+            <Typography variant="h6" sx={{ color: '#ffffff', mt: 3, mb: 2, fontWeight: 600 }}>
+              Notification Webhooks
+            </Typography>
+            <Typography variant="body2" sx={{ color: '#a1a1aa', mb: 2 }}>
+              Configure webhook URLs to receive bet notifications. Only owners can configure webhooks.
+            </Typography>
         <TextField
           fullWidth
           label="Discord Webhook URL"
@@ -504,19 +595,145 @@ export default function ProfileForm() {
           }
           sx={{ mt: 2, color: '#ffffff' }}
         />
+          </>
+        )}
 
-        {/* Membership Plans Section */}
-        <Divider sx={{ my: 4, borderColor: 'rgba(99, 102, 241, 0.3)' }} />
-        <Box mb={3}>
-          <Typography variant="h6" sx={{ color: '#ffffff', mb: 1, fontWeight: 600 }}>
-            Membership Plans
-          </Typography>
-          <Typography variant="body2" sx={{ color: '#a1a1aa' }}>
-            Add your whop link that you want connected to the leaderboard
-          </Typography>
+        <Box display="flex" gap={2} flexWrap="wrap" mt={3}>
+          <Button
+            variant="contained"
+            onClick={handleSave}
+            disabled={saving}
+            sx={{
+              background: 'linear-gradient(135deg, #6366f1, #ec4899)',
+              color: '#ffffff',
+              px: 4,
+              py: 1.5,
+              fontWeight: 600,
+              '&:hover': {
+                background: 'linear-gradient(135deg, #5855eb, #db2777)',
+                transform: 'translateY(-2px)',
+                boxShadow: '0 4px 12px rgba(99, 102, 241, 0.4)',
+              },
+              '&:disabled': {
+                background: 'rgba(99, 102, 241, 0.3)',
+                color: 'rgba(255, 255, 255, 0.5)',
+              },
+              transition: 'all 0.3s ease',
+            }}
+          >
+            {saving ? 'Saving...' : 'Save Profile'}
+          </Button>
         </Box>
+      </Paper>
+      )}
 
-        {membershipPlans.map((plan, index) => (
+      {/* Company Profile Tab - Only for owners */}
+      {role === 'owner' && activeTab === 'company' && (
+        <Paper sx={{ p: 3, mb: 3, background: 'linear-gradient(135deg, rgba(15, 15, 35, 0.9), rgba(30, 30, 60, 0.8))', backdropFilter: 'blur(20px)', border: '1px solid rgba(99, 102, 241, 0.3)', borderRadius: 2 }}>
+          <Typography variant="h6" sx={{ color: '#ffffff', mb: 3, fontWeight: 600 }}>
+            Company Profile
+          </Typography>
+
+          <TextField
+            fullWidth
+            label="Company Name"
+            value={companyName}
+            onChange={(e) => setCompanyName(e.target.value)}
+            margin="normal"
+            helperText="Display name for your company on the leaderboard"
+            sx={{
+              '& .MuiOutlinedInput-root': {
+                color: '#ffffff',
+                '& fieldset': {
+                  borderColor: 'rgba(99, 102, 241, 0.3)',
+                },
+                '&:hover fieldset': {
+                  borderColor: 'rgba(99, 102, 241, 0.5)',
+                },
+                '&.Mui-focused fieldset': {
+                  borderColor: '#6366f1',
+                },
+              },
+              '& .MuiInputLabel-root': {
+                color: '#a1a1aa',
+              },
+              '& .MuiFormHelperText-root': {
+                color: '#a1a1aa',
+              },
+            }}
+          />
+          <TextField
+            fullWidth
+            label="Company Description"
+            value={companyDescription}
+            onChange={(e) => setCompanyDescription(e.target.value)}
+            margin="normal"
+            multiline
+            rows={3}
+            helperText="Optional description for your company"
+            sx={{
+              '& .MuiOutlinedInput-root': {
+                color: '#ffffff',
+                '& fieldset': {
+                  borderColor: 'rgba(99, 102, 241, 0.3)',
+                },
+                '&:hover fieldset': {
+                  borderColor: 'rgba(99, 102, 241, 0.5)',
+                },
+                '&.Mui-focused fieldset': {
+                  borderColor: '#6366f1',
+                },
+              },
+              '& .MuiInputLabel-root': {
+                color: '#a1a1aa',
+              },
+              '& .MuiFormHelperText-root': {
+                color: '#a1a1aa',
+              },
+            }}
+          />
+
+          {/* Opt-in to Leaderboard */}
+          <FormControlLabel
+            control={
+              <Switch
+                checked={optIn}
+                onChange={(e) => setOptIn(e.target.checked)}
+                sx={{
+                  '& .MuiSwitch-switchBase.Mui-checked': {
+                    color: '#6366f1',
+                  },
+                  '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': {
+                    backgroundColor: '#6366f1',
+                  },
+                }}
+              />
+            }
+            label={
+              <Box>
+                <Typography variant="body2" sx={{ color: '#ffffff', fontWeight: 500 }}>
+                  Opt-in to Leaderboard
+                </Typography>
+                <Typography variant="caption" sx={{ color: '#a1a1aa', display: 'block' }}>
+                  Your company will appear on the leaderboard with aggregated stats from all company bets.
+                </Typography>
+              </Box>
+            }
+            sx={{ mt: 2, color: '#ffffff' }}
+          />
+
+          {/* Membership Plans Section */}
+          <Divider sx={{ my: 4, borderColor: 'rgba(99, 102, 241, 0.3)' }} />
+          <Box mb={3}>
+            <Typography variant="h6" sx={{ color: '#ffffff', mb: 1, fontWeight: 600 }}>
+              Membership Plans
+            </Typography>
+            <Typography variant="body2" sx={{ color: '#a1a1aa' }}>
+              Add your whop link that you want connected to the leaderboard. Only owners can manage membership plans.
+            </Typography>
+          </Box>
+
+          {membershipPlans.map((plan, index) => (
           <Paper
             key={plan.id}
             sx={{
@@ -731,40 +948,41 @@ export default function ProfileForm() {
           >
             Add Membership Plan
           </Button>
+        </Box>
 
+        <Box display="flex" gap={2} flexWrap="wrap" mt={3}>
           <Button
             variant="contained"
             onClick={handleSave}
             disabled={saving}
             sx={{
               background: 'linear-gradient(135deg, #6366f1, #ec4899)',
-              color: 'white',
+              color: '#ffffff',
               px: 4,
               py: 1.5,
               fontWeight: 600,
-              boxShadow: '0 4px 20px rgba(99, 102, 241, 0.3)',
               '&:hover': {
-                background: 'linear-gradient(135deg, #4f46e5, #db2777)',
+                background: 'linear-gradient(135deg, #5855eb, #db2777)',
                 transform: 'translateY(-2px)',
-                boxShadow: '0 6px 30px rgba(99, 102, 241, 0.4)',
+                boxShadow: '0 4px 12px rgba(99, 102, 241, 0.4)',
               },
               '&:disabled': {
                 background: 'rgba(99, 102, 241, 0.3)',
-                boxShadow: 'none',
+                color: 'rgba(255, 255, 255, 0.5)',
               },
               transition: 'all 0.3s ease',
             }}
-            startIcon={saving ? <CircularProgress size={16} sx={{ color: '#ffffff' }} /> : null}
           >
-            {saving ? 'Saving...' : 'Save Profile'}
+            {saving ? 'Saving...' : 'Save Company Profile'}
           </Button>
         </Box>
       </Paper>
+      )}
 
-      {stats && (
+      {personalStats && (
         <Box>
           <Typography variant="h5" component="h2" mb={3} sx={{ color: '#ffffff', fontWeight: 600 }}>
-            Your Stats
+            Personal Stats
           </Typography>
 
           {/* Charts Section */}
@@ -994,7 +1212,7 @@ export default function ProfileForm() {
                   <Typography sx={{ color: '#a1a1aa', mb: 1 }} gutterBottom>
                     Total Bets
                   </Typography>
-                  <Typography variant="h4" sx={{ color: '#ffffff', fontWeight: 700 }}>{stats.totalBets}</Typography>
+                  <Typography variant="h4" sx={{ color: '#ffffff', fontWeight: 700 }}>{personalStats?.totalBets || 0}</Typography>
                 </CardContent>
               </Card>
             </Box>
@@ -1009,7 +1227,7 @@ export default function ProfileForm() {
                   <Typography sx={{ color: '#a1a1aa', mb: 1 }} gutterBottom>
                     Win Rate
                   </Typography>
-                  <Typography variant="h4" sx={{ color: '#ffffff', fontWeight: 700 }}>{stats.winRate.toFixed(2)}%</Typography>
+                  <Typography variant="h4" sx={{ color: '#ffffff', fontWeight: 700 }}>{personalStats?.winRate.toFixed(2) || '0.00'}%</Typography>
                 </CardContent>
               </Card>
             </Box>
@@ -1027,11 +1245,11 @@ export default function ProfileForm() {
                   <Typography
                     variant="h4"
                     sx={{
-                      color: stats.roi >= 0 ? '#10b981' : '#ef4444',
+                      color: (personalStats?.roi || 0) >= 0 ? '#10b981' : '#ef4444',
                       fontWeight: 700
                     }}
                   >
-                    {stats.roi >= 0 ? '+' : ''}{stats.roi.toFixed(2)}%
+                    {(personalStats?.roi || 0) >= 0 ? '+' : ''}{personalStats?.roi.toFixed(2) || '0.00'}%
                   </Typography>
                 </CardContent>
               </Card>
@@ -1050,11 +1268,11 @@ export default function ProfileForm() {
                   <Typography
                     variant="h4"
                     sx={{
-                      color: stats.unitsPL >= 0 ? '#10b981' : '#ef4444',
+                      color: (personalStats?.unitsPL || 0) >= 0 ? '#10b981' : '#ef4444',
                       fontWeight: 700
                     }}
                   >
-                    {stats.unitsPL >= 0 ? '+' : ''}{stats.unitsPL.toFixed(2)}
+                    {(personalStats?.unitsPL || 0) >= 0 ? '+' : ''}{personalStats?.unitsPL.toFixed(2) || '0.00'}
                   </Typography>
                 </CardContent>
               </Card>
@@ -1071,8 +1289,8 @@ export default function ProfileForm() {
                     Current Streak
                   </Typography>
                   <Typography variant="h4" display="flex" alignItems="center" gap={1} sx={{ color: '#ffffff', fontWeight: 700 }}>
-                    {stats.currentStreak > 0 && <LocalFireDepartmentIcon sx={{ color: '#f59e0b' }} />}
-                    {stats.currentStreak}
+                    {(personalStats?.currentStreak || 0) > 0 && <LocalFireDepartmentIcon sx={{ color: '#f59e0b' }} />}
+                    {personalStats?.currentStreak || 0}
                   </Typography>
                 </CardContent>
               </Card>
@@ -1088,7 +1306,7 @@ export default function ProfileForm() {
                   <Typography sx={{ color: '#a1a1aa', mb: 1 }} gutterBottom>
                     Longest Streak
                   </Typography>
-                  <Typography variant="h4" sx={{ color: '#ffffff', fontWeight: 700 }}>{stats.longestStreak}</Typography>
+                  <Typography variant="h4" sx={{ color: '#ffffff', fontWeight: 700 }}>{personalStats?.longestStreak || 0}</Typography>
                 </CardContent>
               </Card>
             </Box>
@@ -1103,7 +1321,7 @@ export default function ProfileForm() {
                   <Typography sx={{ color: '#a1a1aa', mb: 1 }} gutterBottom>
                     Wins
                   </Typography>
-                  <Typography variant="h4" sx={{ color: '#10b981', fontWeight: 700 }}>{stats.wins}</Typography>
+                  <Typography variant="h4" sx={{ color: '#10b981', fontWeight: 700 }}>{personalStats?.wins || 0}</Typography>
                 </CardContent>
               </Card>
             </Box>
@@ -1118,7 +1336,128 @@ export default function ProfileForm() {
                   <Typography sx={{ color: '#a1a1aa', mb: 1 }} gutterBottom>
                     Losses
                   </Typography>
-                  <Typography variant="h4" sx={{ color: '#ef4444', fontWeight: 700 }}>{stats.losses}</Typography>
+                  <Typography variant="h4" sx={{ color: '#ef4444', fontWeight: 700 }}>{personalStats?.losses || 0}</Typography>
+                </CardContent>
+              </Card>
+            </Box>
+          </Box>
+        </Box>
+      )}
+
+      {/* Company Stats - Only for owners */}
+      {role === 'owner' && companyStats && (
+        <Box mt={4}>
+          <Typography variant="h5" component="h2" mb={3} sx={{ color: '#ffffff', fontWeight: 600 }}>
+            Company Stats (Aggregated)
+          </Typography>
+          <Typography variant="body2" sx={{ color: '#a1a1aa', mb: 3 }}>
+            These stats include all bets from all users (owners and admins) in your company.
+          </Typography>
+
+          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
+            <Box sx={{ width: { xs: '100%', sm: 'calc(50% - 8px)', md: 'calc(33.333% - 11px)' } }}>
+              <Card sx={{
+                background: 'linear-gradient(135deg, rgba(15, 15, 35, 0.9), rgba(30, 30, 60, 0.8))',
+                backdropFilter: 'blur(20px)',
+                border: '1px solid rgba(99, 102, 241, 0.3)',
+                borderRadius: 2
+              }}>
+                <CardContent>
+                  <Typography sx={{ color: '#a1a1aa', mb: 1 }} gutterBottom>
+                    Total Bets
+                  </Typography>
+                  <Typography variant="h4" sx={{ color: '#ffffff', fontWeight: 700 }}>{companyStats.totalBets || 0}</Typography>
+                </CardContent>
+              </Card>
+            </Box>
+            <Box sx={{ width: { xs: '100%', sm: 'calc(50% - 8px)', md: 'calc(33.333% - 11px)' } }}>
+              <Card sx={{
+                background: 'linear-gradient(135deg, rgba(15, 15, 35, 0.9), rgba(30, 30, 60, 0.8))',
+                backdropFilter: 'blur(20px)',
+                border: '1px solid rgba(99, 102, 241, 0.3)',
+                borderRadius: 2
+              }}>
+                <CardContent>
+                  <Typography sx={{ color: '#a1a1aa', mb: 1 }} gutterBottom>
+                    Win Rate
+                  </Typography>
+                  <Typography variant="h4" sx={{ color: '#ffffff', fontWeight: 700 }}>{companyStats.winRate.toFixed(2) || '0.00'}%</Typography>
+                </CardContent>
+              </Card>
+            </Box>
+            <Box sx={{ width: { xs: '100%', sm: 'calc(50% - 8px)', md: 'calc(33.333% - 11px)' } }}>
+              <Card sx={{
+                background: 'linear-gradient(135deg, rgba(15, 15, 35, 0.9), rgba(30, 30, 60, 0.8))',
+                backdropFilter: 'blur(20px)',
+                border: '1px solid rgba(99, 102, 241, 0.3)',
+                borderRadius: 2
+              }}>
+                <CardContent>
+                  <Typography sx={{ color: '#a1a1aa', mb: 1 }} gutterBottom>
+                    ROI
+                  </Typography>
+                  <Typography
+                    variant="h4"
+                    sx={{
+                      color: (companyStats.roi || 0) >= 0 ? '#10b981' : '#ef4444',
+                      fontWeight: 700
+                    }}
+                  >
+                    {(companyStats.roi || 0) >= 0 ? '+' : ''}{companyStats.roi.toFixed(2) || '0.00'}%
+                  </Typography>
+                </CardContent>
+              </Card>
+            </Box>
+            <Box sx={{ width: { xs: '100%', sm: 'calc(50% - 8px)', md: 'calc(33.333% - 11px)' } }}>
+              <Card sx={{
+                background: 'linear-gradient(135deg, rgba(15, 15, 35, 0.9), rgba(30, 30, 60, 0.8))',
+                backdropFilter: 'blur(20px)',
+                border: '1px solid rgba(99, 102, 241, 0.3)',
+                borderRadius: 2
+              }}>
+                <CardContent>
+                  <Typography sx={{ color: '#a1a1aa', mb: 1 }} gutterBottom>
+                    Units P/L
+                  </Typography>
+                  <Typography
+                    variant="h4"
+                    sx={{
+                      color: (companyStats.unitsPL || 0) >= 0 ? '#10b981' : '#ef4444',
+                      fontWeight: 700
+                    }}
+                  >
+                    {(companyStats.unitsPL || 0) >= 0 ? '+' : ''}{companyStats.unitsPL.toFixed(2) || '0.00'}
+                  </Typography>
+                </CardContent>
+              </Card>
+            </Box>
+            <Box sx={{ width: { xs: '100%', sm: 'calc(50% - 8px)', md: 'calc(33.333% - 11px)' } }}>
+              <Card sx={{
+                background: 'linear-gradient(135deg, rgba(15, 15, 35, 0.9), rgba(30, 30, 60, 0.8))',
+                backdropFilter: 'blur(20px)',
+                border: '1px solid rgba(99, 102, 241, 0.3)',
+                borderRadius: 2
+              }}>
+                <CardContent>
+                  <Typography sx={{ color: '#a1a1aa', mb: 1 }} gutterBottom>
+                    Wins
+                  </Typography>
+                  <Typography variant="h4" sx={{ color: '#10b981', fontWeight: 700 }}>{companyStats.wins || 0}</Typography>
+                </CardContent>
+              </Card>
+            </Box>
+            <Box sx={{ width: { xs: '100%', sm: 'calc(50% - 8px)', md: 'calc(33.333% - 11px)' } }}>
+              <Card sx={{
+                background: 'linear-gradient(135deg, rgba(15, 15, 35, 0.9), rgba(30, 30, 60, 0.8))',
+                backdropFilter: 'blur(20px)',
+                border: '1px solid rgba(99, 102, 241, 0.3)',
+                borderRadius: 2
+              }}>
+                <CardContent>
+                  <Typography sx={{ color: '#a1a1aa', mb: 1 }} gutterBottom>
+                    Losses
+                  </Typography>
+                  <Typography variant="h4" sx={{ color: '#ef4444', fontWeight: 700 }}>{companyStats.losses || 0}</Typography>
                 </CardContent>
               </Card>
             </Box>

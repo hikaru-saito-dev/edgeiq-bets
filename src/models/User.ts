@@ -14,7 +14,9 @@ export type UserRole = 'owner' | 'admin' | 'member';
 export interface IUser extends Document {
   alias: string;
   whopUserId: string;
-  companyId: string; // Whop company/organization ID
+  companyId?: string; // Company ID (manually entered, not auto-set from Whop)
+  companyName?: string; // Company name (only for owners)
+  companyDescription?: string; // Company description (only for owners)
   role: UserRole; // User role: owner, admin, or member
   whopName?: string; // Name of the Whop/company
   whopUsername?: string; // Username from Whop profile
@@ -23,9 +25,9 @@ export interface IUser extends Document {
   whopWebhookUrl?: string; // Whop webhook URL for notifications
   discordWebhookUrl?: string; // Discord webhook URL for notifications
   notifyOnSettlement?: boolean; // Whether to send notifications when bets are settled
-  membershipPlans?: MembershipPlan[]; // Array of membership plans for this Whop
+  membershipPlans?: MembershipPlan[]; // Array of membership plans for this Whop (only for owners)
   membershipUrl?: string; // Legacy: Primary membership URL (deprecated, use membershipPlans)
-  optIn: boolean;
+  optIn: boolean; // Only owners can opt-in to leaderboard
   stats: {
     winRate: number;
     roi: number;
@@ -49,7 +51,9 @@ const MembershipPlanSchema = new Schema<MembershipPlan>({
 const UserSchema = new Schema<IUser>({
   alias: { type: String, required: true, trim: true },
   whopUserId: { type: String, required: true, index: true },
-  companyId: { type: String, required: true, index: true },
+  companyId: { type: String, index: true }, // Optional - must be manually entered
+  companyName: { type: String, trim: true }, // Company name (only for owners)
+  companyDescription: { type: String, trim: true }, // Company description (only for owners)
   role: { type: String, enum: ['owner', 'admin', 'member'], default: 'member', index: true },
   whopName: { type: String, trim: true },
   whopUsername: { type: String, trim: true },
@@ -58,9 +62,9 @@ const UserSchema = new Schema<IUser>({
   whopWebhookUrl: { type: String, trim: true },
   discordWebhookUrl: { type: String, trim: true },
   notifyOnSettlement: { type: Boolean, default: false },
-  membershipPlans: { type: [MembershipPlanSchema], default: [] },
+  membershipPlans: { type: [MembershipPlanSchema], default: [] }, //only for owners
   membershipUrl: { type: String }, // Legacy field for backward compatibility
-  optIn: { type: Boolean, default: true },
+  optIn: { type: Boolean, default: false }, // Default false, only owners can opt-in
   stats: {
     winRate: { type: Number, default: 0 },
     roi: { type: Number, default: 0 },
@@ -73,7 +77,8 @@ const UserSchema = new Schema<IUser>({
 });
 
 // Compound indexes for efficient queries
-UserSchema.index({ companyId: 1, whopUserId: 1 }, { unique: true }); // Unique user per company
+UserSchema.index({ companyId: 1, whopUserId: 1 }, { unique: true, sparse: true }); // Unique user per company (sparse since companyId can be null)
+UserSchema.index({ companyId: 1, role: 1 }, { unique: true, partialFilterExpression: { role: 'owner', companyId: { $exists: true, $ne: null } } }); // Only 1 owner per companyId
 UserSchema.index({ companyId: 1, optIn: 1, 'stats.roi': -1, 'stats.winRate': -1 }); // For company-scoped leaderboard
 
 export const User = (mongoose.models && mongoose.models.User) || mongoose.model<IUser>('User', UserSchema);

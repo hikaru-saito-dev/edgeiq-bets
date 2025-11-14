@@ -120,7 +120,7 @@ async function getPlayerStats(
   playerId: number,
   sport: string,
   gameDate: Date,
-  providerEventId?: string
+  _providerEventId?: string
 ): Promise<Record<string, number> | null> {
   try {
     const apiKey = process.env.PLAYER_API_KEY;
@@ -547,7 +547,7 @@ export async function POST(request: NextRequest) {
  * Note: This endpoint is kept for backward compatibility.
  * For new implementations, use POST /api/bets/settle-all
  */
-export async function PUT(request: NextRequest) {
+export async function PUT() {
   try {
     await connectDB();
 

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import connectDB from '@/lib/db';
-import { verifyWhopUser, getWhopCompany, getWhopUser, userHasCompanyAccess } from '@/lib/whop';
+import { verifyWhopUser } from '@/lib/whop';
 import { User, MembershipPlan } from '@/models/User';
 import { Bet, IBet } from '@/models/Bet';
 import { calculateStats } from '@/lib/stats';
@@ -32,8 +32,10 @@ const whopProductUrlSchema = z.string().url().refine(
 
 const updateUserSchema = z.object({
   alias: z.string().min(1).max(50).optional(),
-  optIn: z.boolean().optional(),
-  whopName: z.string().max(100).optional(),
+  companyId: z.string().min(1).max(100).optional(),
+  companyName: z.string().max(100).optional(),
+  companyDescription: z.string().max(500).optional(),
+  optIn: z.boolean().optional(), // Only owners can opt-in
   whopWebhookUrl: z.union([z.string().url(), z.literal('')]).optional(),
   discordWebhookUrl: z.union([z.string().url(), z.literal('')]).optional(),
   notifyOnSettlement: z.boolean().optional(),
@@ -44,12 +46,13 @@ const updateUserSchema = z.object({
     price: z.string().max(50),
     url: whopProductUrlSchema,
     isPremium: z.boolean().optional(),
-  })).optional(),
+  })).optional(), // Only owners can manage membership plans
 });
 
 /**
  * GET /api/user
  * Get current user profile and stats
+ * For owners: returns both personal stats and company stats (aggregated from all company bets)
  */
 export async function GET() {
   try {
@@ -61,89 +64,44 @@ export async function GET() {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { userId: verifiedUserId, companyId: companyIdFromAuth } = authInfo;
-    const companyId = companyIdFromAuth || process.env.NEXT_PUBLIC_WHOP_COMPANY_ID;
+    const { userId: verifiedUserId } = authInfo;
 
-    const accessRole = companyId ? await userHasCompanyAccess({ userId: verifiedUserId, companyId }) : 'none';
-    if (accessRole !== 'owner' && accessRole !== 'admin') {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-    }
-
-    // Find or create user
-    let user = await User.findOne({ whopUserId: verifiedUserId, companyId: companyId || 'default' });
+    // Find user by whopUserId only (companyId is manually entered)
+    const user = await User.findOne({ whopUserId: verifiedUserId });
     if (!user) {
-      // Fetch user data from Whop API
-      const whopUserData = await getWhopUser(verifiedUserId);
-      
-      // Get company info if available
-      let companyInfo = null;
-      if (companyId) {
-        companyInfo = await getWhopCompany(companyId);
-      }
-
-      // Check if this is the first user in the company (set as owner)
-      const userCount = await User.countDocuments({ companyId: companyId || 'default' });
-      const isFirstUser = userCount === 0;
-
-      // Create user if doesn't exist
-      user = await User.create({
-        whopUserId: verifiedUserId,
-        companyId: companyId || 'default',
-        role: isFirstUser ? 'owner' : 'member',
-        alias: whopUserData?.name || whopUserData?.username || `User ${verifiedUserId.slice(0, 8)}`,
-        whopName: companyInfo?.name,
-        whopUsername: whopUserData?.username,
-        whopDisplayName: whopUserData?.name,
-        whopAvatarUrl: whopUserData?.profilePicture?.sourceUrl,
-        optIn: true,
-        membershipPlans: [],
-        stats: {
-          winRate: 0,
-          roi: 0,
-          unitsPL: 0,
-          currentStreak: 0,
-          longestStreak: 0,
-        },
-      });
-    } else {
-      // Update user data from Whop if missing or outdated
-      if (!user.whopUsername || !user.whopDisplayName || !user.whopAvatarUrl) {
-        const whopUserData = await getWhopUser(verifiedUserId);
-        if (whopUserData) {
-          if (!user.whopUsername && whopUserData.username) {
-            user.whopUsername = whopUserData.username;
-          }
-          if (!user.whopDisplayName && whopUserData.name) {
-            user.whopDisplayName = whopUserData.name;
-          }
-          if (!user.whopAvatarUrl && whopUserData.profilePicture?.sourceUrl) {
-            user.whopAvatarUrl = whopUserData.profilePicture.sourceUrl;
-          }
-          // Update alias if it's still a placeholder - use whopDisplayName as default
-          if (user.alias.startsWith('User ') && whopUserData.name) {
-            user.alias = whopUserData.name;
-          } else if (!user.alias && whopUserData.name) {
-            user.alias = whopUserData.name;
-          }
-          await user.save();
-        }
-      }
+      return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
 
-    // Get all bets (excluding parlay legs) and calculate current stats
-    const bets = await Bet.find({ 
+    // Get personal bets (excluding parlay legs) and calculate personal stats
+    const personalBets = await Bet.find({ 
       userId: user._id,
-      parlayId: { $exists: false } // Exclude parlay leg bets
+      parlayId: { $exists: false }
     }).lean();
-    const stats = calculateStats(bets as unknown as IBet[]);
+    const personalStats = calculateStats(personalBets as unknown as IBet[]);
+
+    // For owners: also get company stats (aggregated from all company bets)
+    let companyStats = null;
+    if (user.role === 'owner' && user.companyId) {
+      // Get all users in the same company
+      const companyUsers = await User.find({ companyId: user.companyId }).select('_id');
+      const companyUserIds = companyUsers.map(u => u._id);
+      
+      // Get all bets from all users in the company
+      const companyBets = await Bet.find({ 
+        userId: { $in: companyUserIds },
+        parlayId: { $exists: false }
+      }).lean();
+      companyStats = calculateStats(companyBets as unknown as IBet[]);
+    }
 
     return NextResponse.json({
       user: {
-        alias: user.alias || user.whopDisplayName || user.whopUsername || `User ${user.whopUserId.slice(0, 8)}`,
-        optIn: user.optIn,
-        whopUserId: user.whopUserId,
+        alias: user.alias,
+        role: user.role,
         companyId: user.companyId,
-        whopName: user.whopName,
+        companyName: user.companyName,
+        companyDescription: user.companyDescription,
+        optIn: user.optIn,
         whopUsername: user.whopUsername,
         whopDisplayName: user.whopDisplayName,
         whopAvatarUrl: user.whopAvatarUrl,
@@ -152,7 +110,8 @@ export async function GET() {
         notifyOnSettlement: user.notifyOnSettlement ?? false,
         membershipPlans: user.membershipPlans || [],
       },
-      stats,
+      personalStats,
+      companyStats, // Only for owners with companyId
     });
   } catch (error) {
     console.error('Error fetching user:', error);
@@ -165,7 +124,11 @@ export async function GET() {
 
 /**
  * PATCH /api/user
- * Update user profile (alias, optIn)
+ * Update user profile
+ * - Only owners can opt-in to leaderboard
+ * - Only owners can manage membership plans
+ * - Only owners can set companyName and companyDescription
+ * - Enforce only 1 owner per companyId
  */
 export async function PATCH(request: NextRequest) {
   try {
@@ -177,84 +140,98 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { userId, companyId: companyIdFromAuth } = authInfo;
-
-    // Use companyId from auth, or fallback to environment variable
-    const companyId = companyIdFromAuth || process.env.NEXT_PUBLIC_WHOP_COMPANY_ID;
-
-    const accessRole = companyId ? await userHasCompanyAccess({ userId, companyId }) : 'none';
-    if (accessRole !== 'owner' && accessRole !== 'admin') {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-    }
+    const { userId } = authInfo;
 
     const body = await request.json();
     const validated = updateUserSchema.parse(body);
 
-    // Find or create user
-    let user = await User.findOne({ whopUserId: userId, companyId: companyId || 'default' });
+    // Find user
+    const user = await User.findOne({ whopUserId: userId });
     if (!user) {
-      // Fetch user data from Whop API
-      const whopUserData = await getWhopUser(userId);
+      return NextResponse.json({ error: 'User not found' }, { status: 404 });
+    }
+
+    // Update alias (all roles can update)
+    if (validated.alias !== undefined) {
+      user.alias = validated.alias;
+    }
+
+    // Update companyId (owners and admins can set)
+    if (validated.companyId !== undefined && validated.companyId !== user.companyId) {
+      if (user.role === 'owner') {
+        // Check if another owner already exists for this companyId
+        const existingOwner = await User.findOne({ 
+          companyId: validated.companyId, 
+          role: 'owner',
+          _id: { $ne: user._id }
+        });
+        if (existingOwner) {
+          return NextResponse.json(
+            { error: 'Another owner already exists for this company' },
+            { status: 400 }
+          );
+        }
+      }
+      user.companyId = validated.companyId || undefined;
+    }
+
+    // Update companyName and companyDescription (only owners)
+    if (user.role === 'owner') {
+      if (validated.companyName !== undefined) {
+        user.companyName = validated.companyName || undefined;
+      }
+      if (validated.companyDescription !== undefined) {
+        user.companyDescription = validated.companyDescription || undefined;
+      }
       
-      // Get company info if available
-      let companyInfo = null;
-      if (companyId) {
-        companyInfo = await getWhopCompany(companyId);
-      }
-
-      const userCount = await User.countDocuments({ companyId: companyId || 'default' });
-      const isFirstUser = userCount === 0;
-
-      user = await User.create({
-        whopUserId: userId,
-        companyId: companyId || 'default',
-        role: isFirstUser ? 'owner' : 'member',
-        alias: validated.alias || whopUserData?.name || whopUserData?.username || `User ${userId.slice(0, 8)}`,
-        whopName: companyInfo?.name,
-        whopUsername: whopUserData?.username,
-        whopDisplayName: whopUserData?.name,
-        whopAvatarUrl: whopUserData?.profilePicture?.sourceUrl,
-        optIn: validated.optIn ?? true,
-        membershipPlans: validated.membershipPlans || [],
-        stats: {
-          winRate: 0,
-          roi: 0,
-          unitsPL: 0,
-          currentStreak: 0,
-          longestStreak: 0,
-        },
-      });
-    } else {
-      // Update user
-      if (validated.alias !== undefined) {
-        user.alias = validated.alias;
-      }
+      // Only owners can opt-in to leaderboard
       if (validated.optIn !== undefined) {
         user.optIn = validated.optIn;
       }
-      if (validated.whopName !== undefined) {
-        user.whopName = validated.whopName;
-      }
-      if (validated.whopWebhookUrl !== undefined) {
-        user.whopWebhookUrl = validated.whopWebhookUrl || undefined;
-      }
-      if (validated.discordWebhookUrl !== undefined) {
-        user.discordWebhookUrl = validated.discordWebhookUrl || undefined;
-      }
-      if (validated.notifyOnSettlement !== undefined) {
-        user.notifyOnSettlement = validated.notifyOnSettlement;
-      }
+      
+      // Only owners can manage membership plans
       if (validated.membershipPlans !== undefined) {
         user.membershipPlans = validated.membershipPlans as MembershipPlan[];
       }
-      await user.save();
+    } else {
+      // Admins cannot opt-in or manage membership plans
+      if (validated.optIn !== undefined || validated.membershipPlans !== undefined) {
+        return NextResponse.json(
+          { error: 'Only owners can opt-in to leaderboard and manage membership plans' },
+          { status: 403 }
+        );
+      }
     }
 
-    return NextResponse.json({ user });
+    // Update webhook URLs (all roles can update)
+    if (validated.whopWebhookUrl !== undefined) {
+      user.whopWebhookUrl = validated.whopWebhookUrl || undefined;
+    }
+    if (validated.discordWebhookUrl !== undefined) {
+      user.discordWebhookUrl = validated.discordWebhookUrl || undefined;
+    }
+    if (validated.notifyOnSettlement !== undefined) {
+      user.notifyOnSettlement = validated.notifyOnSettlement;
+    }
+
+    await user.save();
+
+    return NextResponse.json({ 
+      message: 'User updated successfully',
+      user: {
+        alias: user.alias,
+        role: user.role,
+        companyId: user.companyId,
+        companyName: user.companyName,
+        companyDescription: user.companyDescription,
+        optIn: user.optIn,
+        membershipPlans: user.membershipPlans,
+      }
+    });
   } catch (error) {
-    if (error instanceof Error && error.name === 'ZodError') {
+    if (error instanceof z.ZodError) {
       return NextResponse.json(
-        { error: 'Validation error', details: error },
+        { error: 'Validation error', details: error.errors },
         { status: 400 }
       );
     }
@@ -265,4 +242,3 @@ export async function PATCH(request: NextRequest) {
     );
   }
 }
-

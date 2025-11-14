@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { verifyWhopUser, getWhopUser, getWhopCompany } from '@/lib/whop';
+import { verifyWhopUser, getWhopUser } from '@/lib/whop';
 import connectDB from '@/lib/db';
 import { User } from '@/models/User';
 
@@ -7,40 +7,34 @@ export const runtime = 'nodejs';
 
 /**
  * Ensure user exists in database (create if doesn't exist)
- * First user in company becomes owner, others become member
+ * companyId is NOT auto-set from Whop - must be manually entered
  */
-async function ensureUserExists(userId: string, companyId: string): Promise<'owner' | 'admin' | 'member' | 'none'> {
+async function ensureUserExists(userId: string): Promise<'owner' | 'admin' | 'member' | 'none'> {
   try {
     await connectDB();
     
-    let user = await User.findOne({ whopUserId: userId, companyId });
+    // Find user by whopUserId only (companyId is optional and manually entered)
+    let user = await User.findOne({ whopUserId: userId });
+    
+    // Always try to fetch latest user data from Whop API
+    let whopUserData = null;
+    try {
+      whopUserData = await getWhopUser(userId);
+    } catch {
+      // Continue even if Whop API calls fail
+    }
     
     if (!user) {
-      // Check if this is the first user in the company (set as owner)
-      const userCount = await User.countDocuments({ companyId });
-      const isFirstUser = userCount === 0;
-      
-      // Try to fetch user data from Whop API (but don't fail if it doesn't work)
-      let whopUserData = null;
-      let companyInfo = null;
-      try {
-        whopUserData = await getWhopUser(userId);
-        companyInfo = await getWhopCompany(companyId);
-      } catch {
-        // Continue even if Whop API calls fail
-      }
-      
-      // Create user - first user becomes owner, others become member
+      // Create user without companyId (must be manually entered)
       user = await User.create({
         whopUserId: userId,
-        companyId,
-        role: isFirstUser ? 'owner' : 'member',
+        // companyId is NOT set - must be manually entered by user
+        role: 'member', // Default to member, can be changed to owner/admin by existing owner
         alias: whopUserData?.name || whopUserData?.username || `User ${userId.slice(0, 8)}`,
-        whopName: companyInfo?.name,
         whopUsername: whopUserData?.username,
         whopDisplayName: whopUserData?.name,
         whopAvatarUrl: whopUserData?.profilePicture?.sourceUrl,
-        optIn: true,
+        optIn: false, // Default false, only owners can opt-in
         membershipPlans: [],
         stats: {
           winRate: 0,
@@ -50,12 +44,40 @@ async function ensureUserExists(userId: string, companyId: string): Promise<'own
           longestStreak: 0,
         },
       });
+    } else {
+      // Update existing user with latest Whop data (especially avatar)
+      const updates: {
+        whopUsername?: string;
+        whopDisplayName?: string;
+        whopAvatarUrl?: string;
+        whopName?: string;
+      } = {};
       
-      return user.role || 'member';
+      if (whopUserData) {
+        if (whopUserData.username && whopUserData.username !== user.whopUsername) {
+          updates.whopUsername = whopUserData.username;
+        }
+        if (whopUserData.name && whopUserData.name !== user.whopDisplayName) {
+          updates.whopDisplayName = whopUserData.name;
+        }
+        // Always update avatar if available from Whop (even if currently null in DB)
+        if (whopUserData.profilePicture?.sourceUrl) {
+          if (whopUserData.profilePicture.sourceUrl !== user.whopAvatarUrl) {
+            updates.whopAvatarUrl = whopUserData.profilePicture.sourceUrl;
+          }
+        }
+      }
+      
+      // Only update if there are changes
+      if (Object.keys(updates).length > 0) {
+        Object.assign(user, updates);
+        await user.save();
+      }
     }
     
     return user.role || 'member';
   } catch (error) {
+    console.error('Error ensuring user exists:', error);
     return 'none';
   }
 }
@@ -69,21 +91,26 @@ export async function GET() {
       return NextResponse.json({ role: 'none', isAuthorized: false }, { status: 401 });
     }
 
-    const { userId, companyId: companyIdFromAuth } = authInfo;
+    const { userId } = authInfo;
 
-    // Use companyId from auth, or fallback to environment variable
-    const companyId = companyIdFromAuth || process.env.NEXT_PUBLIC_WHOP_COMPANY_ID;
+    // Ensure user exists (companyId is NOT auto-set from Whop)
+    const role = await ensureUserExists(userId);
+    
+    // Get user to check if they have companyId set
+    await connectDB();
+    const user = await User.findOne({ whopUserId: userId });
+    const hasCompanyId = !!user?.companyId;
+    
+    // Users are authorized if they're owner/admin AND have companyId set
+    const isAuthorized = (role === 'owner' || role === 'admin') && hasCompanyId;
 
-    if (!companyId) {
-      return NextResponse.json({ role: 'none', isAuthorized: false }, { status: 200 });
-    }
-
-    // Ensure user exists (create if first user, otherwise check existing role)
-    const role = await ensureUserExists(userId, companyId);
-    const isAuthorized = role === 'owner' || role === 'admin';
-
-    return NextResponse.json({ role, companyId, isAuthorized });
-  } catch (error) {
+    return NextResponse.json({ 
+      role, 
+      companyId: user?.companyId || null,
+      hasCompanyId,
+      isAuthorized 
+    });
+  } catch {
     return NextResponse.json({ role: 'none', isAuthorized: false }, { status: 500 });
   }
 }

@@ -250,7 +250,6 @@ export default function CreateBetForm({ open, onClose, onSuccess }: CreateBetFor
   const [overUnder, setOverUnder] = useState<'Over' | 'Under' | ''>('');
   const [playerName, setPlayerName] = useState('');
   const [statType, setStatType] = useState('');
-  const [parlaySummary, setParlaySummary] = useState('');
   const [isParlay, setIsParlay] = useState(false);
   type ParlayLegLocal = {
     label: string;
@@ -552,7 +551,7 @@ export default function CreateBetForm({ open, onClose, onSuccess }: CreateBetFor
       setOverUnder('');
       setPlayerName('');
       setStatType('');
-      setParlaySummary('');
+      // parlaySummary removed - computed from parlayLegs
       setOddsValue('');
       setUnits('');
       setBook('');
@@ -850,7 +849,7 @@ export default function CreateBetForm({ open, onClose, onSuccess }: CreateBetFor
   };
 
   // Format current selection into a parlay leg string
-  const formatCurrentLeg = (forStore = false): { label: string; game: Game; market: ParlayLegLocal['market'] } | null => {
+  const formatCurrentLeg = (): { label: string; game: Game; market: ParlayLegLocal['market'] } | null => {
     if (!selectedGame) return null;
     if (marketType === 'ML') {
       if (!selection) return null;
@@ -895,7 +894,7 @@ export default function CreateBetForm({ open, onClose, onSuccess }: CreateBetFor
       return;
     }
     setParlayLegs((prev) => [...prev, leg]);
-    setParlaySummary((prev) => (prev ? `${prev} + ${leg.label}` : leg.label));
+    // parlaySummary is computed from parlayLegs when creating bet
     // Reset market-specific fields for next leg
     setSelection('');
     setLine('');
@@ -946,7 +945,7 @@ export default function CreateBetForm({ open, onClose, onSuccess }: CreateBetFor
                 setIsParlay(checked);
                 if (!checked) {
                   setParlayLegs([]);
-                  setParlaySummary('');
+                  // parlaySummary removed - computed from parlayLegs
                 }
               }}
               sx={{
@@ -1056,7 +1055,7 @@ export default function CreateBetForm({ open, onClose, onSuccess }: CreateBetFor
                   setOverUnder('');
                   setPlayerName('');
                   setStatType('');
-                  setParlaySummary('');
+                  // parlaySummary removed - computed from parlayLegs
                   setSelectedPlayer(null);
                   setPlayerSearchQuery('');
                   setPlayerResults([]);
@@ -1101,7 +1100,7 @@ export default function CreateBetForm({ open, onClose, onSuccess }: CreateBetFor
                     size="small"
                     onClick={() => {
                       setParlayLegs([]);
-                      setParlaySummary('');
+                      // parlaySummary removed - computed from parlayLegs
                     }}
                     sx={{ textTransform: 'none', color: '#a1a1aa' }}
                   >
@@ -1117,7 +1116,6 @@ export default function CreateBetForm({ open, onClose, onSuccess }: CreateBetFor
                         onDelete={() => {
                           const next = parlayLegs.filter((_, i) => i !== idx);
                           setParlayLegs(next);
-                          setParlaySummary(next.map((l) => l.label).join(' + '));
                         }}
                         sx={{ bgcolor: 'rgba(99, 102, 241, 0.15)', color: '#ffffff' }}
                       />

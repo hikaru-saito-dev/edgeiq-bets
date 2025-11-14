@@ -1,13 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import connectDB from '@/lib/db';
-import { verifyWhopUser, getWhopCompany, getWhopUser, userHasCompanyAccess } from '@/lib/whop';
+import { verifyWhopUser } from '@/lib/whop';
 import { Bet, IBet } from '@/models/Bet';
 import { User } from '@/models/User';
 import { Log } from '@/models/Log';
 import { 
   createBetSchema, 
   createBetSchemaLegacy,
-  updateBetSchema, 
   type GameSelectionInput,
   type MarketSelectionInput,
 } from '@/utils/validateBet';
@@ -15,8 +14,7 @@ import { z } from 'zod';
 import { updateUserStats } from '@/lib/stats';
 import { 
   notifyBetCreated, 
-  notifyBetDeleted, 
-  notifyBetUpdated 
+  notifyBetDeleted,
 } from '@/lib/betNotifications';
 
 export const runtime = 'nodejs';
@@ -150,12 +148,17 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { userId, companyId: companyIdFromAuth } = authInfo;
-    const companyId = companyIdFromAuth || process.env.NEXT_PUBLIC_WHOP_COMPANY_ID;
+    const { userId } = authInfo;
 
-    const accessRole = companyId ? await userHasCompanyAccess({ userId, companyId }) : 'none';
-    if (accessRole !== 'owner' && accessRole !== 'admin') {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    // Find user by whopUserId (companyId is manually entered, not from Whop auth)
+    const user = await User.findOne({ whopUserId: userId });
+    if (!user) {
+      return NextResponse.json({ error: 'User not found' }, { status: 404 });
+    }
+
+    // Check if user is owner or admin
+    if (user.role !== 'owner' && user.role !== 'admin') {
+      return NextResponse.json({ error: 'Forbidden. Only owners and admins can view bets.' }, { status: 403 });
     }
 
     // Parse query params
@@ -163,44 +166,6 @@ export async function GET(request: NextRequest) {
     const page = Math.max(1, parseInt(searchParams.get('page') || '1', 10));
     const pageSize = Math.min(100, Math.max(1, parseInt(searchParams.get('pageSize') || '10', 10)));
     const search = (searchParams.get('search') || '').trim();
-
-    // Find or create user
-    let user = await User.findOne({ whopUserId: userId, companyId: companyId || 'default' });
-    if (!user) {
-      // Fetch user data from Whop API
-      const whopUserData = await getWhopUser(userId);
-      
-      // Get company info if available
-      let companyInfo = null;
-      if (companyId) {
-        companyInfo = await getWhopCompany(companyId);
-      }
-
-      // Check if this is the first user in the company (set as owner)
-      const userCount = await User.countDocuments({ companyId: companyId || 'default' });
-      const isFirstUser = userCount === 0;
-
-      // Create user if doesn't exist
-      user = await User.create({
-        whopUserId: userId,
-        companyId: companyId || 'default',
-        role: isFirstUser ? 'owner' : 'member',
-        alias: whopUserData?.name || whopUserData?.username || `User ${userId.slice(0, 8)}`,
-        whopName: companyInfo?.name,
-        whopUsername: whopUserData?.username,
-        whopDisplayName: whopUserData?.name,
-        whopAvatarUrl: whopUserData?.profilePicture?.sourceUrl,
-        optIn: true,
-        membershipPlans: [],
-        stats: {
-          winRate: 0,
-          roi: 0,
-          unitsPL: 0,
-          currentStreak: 0,
-          longestStreak: 0,
-        },
-      });
-    }
 
     // Build query
     const query: Record<string, unknown> = { userId: user._id };
@@ -295,13 +260,27 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { userId, companyId: companyIdFromAuth } = authInfo;
-    const companyId = companyIdFromAuth || process.env.NEXT_PUBLIC_WHOP_COMPANY_ID;
+    const { userId } = authInfo;
 
-    const accessRole = companyId ? await userHasCompanyAccess({ userId, companyId }) : 'none';
-    if (accessRole !== 'owner' && accessRole !== 'admin') {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    // Find user by whopUserId (companyId is manually entered, not from Whop auth)
+    const user = await User.findOne({ whopUserId: userId });
+    if (!user) {
+      return NextResponse.json({ error: 'User not found. Please set up your profile first.' }, { status: 404 });
     }
+
+    // Check if user is owner or admin
+    if (user.role !== 'owner' && user.role !== 'admin') {
+      return NextResponse.json({ error: 'Forbidden. Only owners and admins can create bets.' }, { status: 403 });
+    }
+
+    // Require companyId to be set before creating bets
+    if (!user.companyId) {
+      return NextResponse.json({ 
+        error: 'Company ID is required. Please set your company ID in your profile before creating bets.' 
+      }, { status: 400 });
+    }
+
+    const companyId = user.companyId;
 
     const body = await request.json();
     
@@ -325,44 +304,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Find or create user
-    let user = await User.findOne({ whopUserId: userId, companyId: companyId || 'default' });
-    if (!user) {
-      // Fetch user data from Whop API
-      const whopUserData = await getWhopUser(userId);
-      
-      // Get company info if available
-      let companyInfo = null;
-      if (companyId) {
-        companyInfo = await getWhopCompany(companyId);
-      }
-
-      // Check if this is the first user in the company (set as owner)
-      const userCount = await User.countDocuments({ companyId: companyId || 'default' });
-      const isFirstUser = userCount === 0;
-
-      // Create user if doesn't exist
-      user = await User.create({
-        whopUserId: userId,
-        companyId: companyId || 'default',
-        role: isFirstUser ? 'owner' : 'member',
-        alias: whopUserData?.name || whopUserData?.username || `User ${userId.slice(0, 8)}`,
-        whopName: companyInfo?.name,
-        whopUsername: whopUserData?.username,
-        whopDisplayName: whopUserData?.name,
-        whopAvatarUrl: whopUserData?.profilePicture?.sourceUrl,
-        optIn: true,
-        membershipPlans: [],
-        stats: {
-          winRate: 0,
-          roi: 0,
-          unitsPL: 0,
-          currentStreak: 0,
-          longestStreak: 0,
-        },
-      });
-    }
-
+    // User already found and validated above - use it for bet creation
     // Determine startTime and create bet data
     let startTime: Date;
     let betData: Record<string, unknown>;
@@ -378,7 +320,7 @@ export async function POST(request: NextRequest) {
         units: validatedLegacy.units,
         result: 'pending' as const,
         locked,
-        companyId: companyId || user.companyId,
+        companyId: user.companyId,
         eventName: validatedLegacy.eventName,
         odds: validatedLegacy.odds,
         oddsFormat: 'decimal' as const,
@@ -395,7 +337,7 @@ export async function POST(request: NextRequest) {
         units: validatedNew.units,
         result: 'pending' as const,
         locked,
-        companyId: companyId || user.companyId,
+        companyId: user.companyId,
         eventName: validatedNew.eventName,
         sport: validatedNew.game.sport,
         sportKey: validatedNew.game.sportKey, // Store sportKey for auto-settlement
@@ -473,7 +415,7 @@ export async function POST(request: NextRequest) {
             oddsFormat: 'decimal' as const,
             result: 'pending' as const,
             locked: lockedLeg,
-            companyId: companyId || user.companyId,
+            companyId: user.companyId,
             eventName,
             sport: legGame.sport,
             sportKey: legGame.sportKey,
@@ -527,7 +469,7 @@ export async function POST(request: NextRequest) {
             oddsFormat: 'decimal' as const,
             result: 'pending' as const,
             locked: new Date() >= validatedNew.game.startTime,
-            companyId: companyId || user.companyId,
+            companyId: user.companyId,
             eventName: validatedNew.eventName,
             sport: validatedNew.game.sport,
             sportKey: validatedNew.game.sportKey,
@@ -587,7 +529,7 @@ export async function POST(request: NextRequest) {
  * PUT /api/bets?action=settle
  * Manual settlement is disabled - bets are auto-settled based on game results
  */
-export async function PUT(request: NextRequest) {
+export async function PUT() {
   return NextResponse.json(
     { error: 'Manual settlement is disabled. Bets are automatically settled based on game results.' },
     { status: 403 }
@@ -608,12 +550,17 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { userId, companyId: companyIdFromAuth } = authInfo;
-    const companyId = companyIdFromAuth || process.env.NEXT_PUBLIC_WHOP_COMPANY_ID;
+    const { userId } = authInfo;
 
-    const accessRole = companyId ? await userHasCompanyAccess({ userId, companyId }) : 'none';
-    if (accessRole !== 'owner' && accessRole !== 'admin') {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    // Find user by whopUserId (companyId is manually entered, not from Whop auth)
+    const user = await User.findOne({ whopUserId: userId });
+    if (!user) {
+      return NextResponse.json({ error: 'User not found' }, { status: 404 });
+    }
+
+    // Check if user is owner or admin
+    if (user.role !== 'owner' && user.role !== 'admin') {
+      return NextResponse.json({ error: 'Forbidden. Only owners and admins can delete bets.' }, { status: 403 });
     }
 
     const body = await request.json();
@@ -621,11 +568,6 @@ export async function DELETE(request: NextRequest) {
 
     if (!betId) {
       return NextResponse.json({ error: 'betId is required' }, { status: 400 });
-    }
-
-    const user = await User.findOne({ whopUserId: userId, companyId: companyId || 'default' });
-    if (!user) {
-      return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
 
     const bet = await Bet.findOne({ _id: betId, userId: user._id });

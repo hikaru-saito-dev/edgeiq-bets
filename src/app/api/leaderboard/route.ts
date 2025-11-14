@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import connectDB from '@/lib/db';
-import { verifyWhopUser } from '@/lib/whop';
 import { User, IUser } from '@/models/User';
 import { Bet, IBet } from '@/models/Bet';
 import { filterBetsByDateRange } from '@/lib/stats';
@@ -10,10 +9,7 @@ export const runtime = 'nodejs';
 export async function GET(request: NextRequest) {
   try {
     await connectDB();
-    const headers = await import('next/headers').then(m => m.headers());
-    const authInfo = await verifyWhopUser(headers);
-    const companyIdFromAuth = authInfo?.companyId;
-    const companyId = companyIdFromAuth || process.env.NEXT_PUBLIC_WHOP_COMPANY_ID;
+    
     const { searchParams } = new URL(request.url);
     const range = (searchParams.get('range') || 'all') as 'all' | '30d' | '7d';
     const companyFilter = searchParams.get('companyId');
@@ -21,28 +17,37 @@ export async function GET(request: NextRequest) {
     const pageSize = Math.min(100, Math.max(1, parseInt(searchParams.get('pageSize') || '10', 10)));
     const search = (searchParams.get('search') || '').trim();
 
-    // Base query for all owners/admins who opted in
+    // Only show owners who opted in and have companyId set
     const baseQuery: Record<string, unknown> = { 
       optIn: true,
-      role: { $in: ['owner', 'admin'] },
+      role: 'owner',
+      companyId: { $exists: true, $ne: null },
     };
     if (companyFilter) {
       baseQuery.companyId = companyFilter;
-    } else if (companyId) {
-      baseQuery.companyId = companyId;
     }
 
-    // Get ALL users first (for global ranking calculation)
-    const allUsers = await User.find(baseQuery).lean();
+    // Get ALL owners who opted in (for global ranking calculation)
+    const allOwners = await User.find(baseQuery).lean();
 
-    // Calculate stats for ALL users to get global ranking
+    // Calculate stats for each owner (aggregating all company bets)
     const allLeaderboardEntries = await Promise.all(
-      allUsers.map(async (userRaw) => {
-        const user = userRaw as unknown as IUser;
-        const betsRaw = await Bet.find({ userId: user._id }).lean();
-        const bets = filterBetsByDateRange(betsRaw as unknown as IBet[], range);
+      allOwners.map(async (ownerRaw) => {
+        const owner = ownerRaw as unknown as IUser;
+        
+        if (!owner.companyId) {
+          return null; // Skip if no companyId
+        }
 
-        const settledBets = bets.filter((bet) => bet.result !== 'pending');
+        // Get all users in the same company (owner + admins)
+        const companyUsers = await User.find({ companyId: owner.companyId }).select('_id');
+        const companyUserIds = companyUsers.map(u => u._id);
+        
+        // Get ALL bets from all users in the company (aggregated stats)
+        const allCompanyBetsRaw = await Bet.find({ userId: { $in: companyUserIds } }).lean();
+        const allCompanyBets = filterBetsByDateRange(allCompanyBetsRaw as unknown as IBet[], range);
+
+        const settledBets = allCompanyBets.filter((bet) => bet.result !== 'pending');
         const actionableBets = settledBets.filter(
           (bet) => bet.result === 'win' || bet.result === 'loss'
         );
@@ -82,17 +87,17 @@ export async function GET(request: NextRequest) {
           }
         }
 
-        // Get membership plans with affiliate links
-        const userUsername = user.whopUsername || user.whopDisplayName || 'woodiee';
-        const membershipPlans = (user.membershipPlans || []).map((plan) => {
+        // Get membership plans with affiliate links (use owner's username)
+        const userUsername = owner.whopUsername || owner.whopDisplayName || owner.alias || 'user';
+        const membershipPlans = (owner.membershipPlans || []).map((plan) => {
           let affiliateLink: string | null = null;
           if (plan.url) {
             try {
               const url = new URL(plan.url);
-              url.searchParams.set('a', 'woodiee');
+              url.searchParams.set('a', userUsername);
               affiliateLink = url.toString();
             } catch {
-              affiliateLink = `${plan.url}${plan.url.includes('?') ? '&' : '?'}a=woodiee`;
+              affiliateLink = `${plan.url}${plan.url.includes('?') ? '&' : '?'}a=${userUsername}`;
             }
           }
           return {
@@ -107,13 +112,14 @@ export async function GET(request: NextRequest) {
         });
 
         return {
-          userId: String(user._id),
-          alias: user.alias || user.whopDisplayName || user.whopUsername || `User ${user.whopUserId.slice(0, 8)}`,
-          whopName: user.whopName || user.alias,
-          whopDisplayName: user.whopDisplayName,
-          whopUsername: user.whopUsername,
-          whopAvatarUrl: user.whopAvatarUrl,
-          companyId: user.companyId,
+          userId: String(owner._id),
+          alias: owner.companyName || owner.alias || owner.whopDisplayName || owner.whopUsername || `Company ${owner.companyId.slice(0, 8)}`,
+          companyName: owner.companyName,
+          companyDescription: owner.companyDescription,
+          whopDisplayName: owner.whopDisplayName,
+          whopUsername: owner.whopUsername,
+          whopAvatarUrl: owner.whopAvatarUrl,
+          companyId: owner.companyId,
           membershipPlans,
           winRate,
           roi,
@@ -124,14 +130,17 @@ export async function GET(request: NextRequest) {
       })
     );
 
+    // Filter out null entries
+    const validEntries = allLeaderboardEntries.filter((entry): entry is NonNullable<typeof entry> => entry !== null);
+
     // Sort ALL entries by ROI then Win% to get global ranking
-    allLeaderboardEntries.sort((a, b) => {
+    validEntries.sort((a, b) => {
       if (b.roi !== a.roi) return b.roi - a.roi;
       return b.winRate - a.winRate;
     });
 
     // Assign global ranks to all entries
-    const globallyRanked = allLeaderboardEntries.map((entry, index) => ({
+    const globallyRanked = validEntries.map((entry, index) => ({
       ...entry,
       rank: index + 1,
     }));
@@ -142,6 +151,7 @@ export async function GET(request: NextRequest) {
       const regex = new RegExp(search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
       filteredLeaderboard = globallyRanked.filter((entry) => 
         regex.test(entry.alias) || 
+        (entry.companyName && regex.test(entry.companyName)) ||
         (entry.whopDisplayName && regex.test(entry.whopDisplayName)) ||
         (entry.whopUsername && regex.test(entry.whopUsername))
       );
@@ -171,4 +181,3 @@ export async function GET(request: NextRequest) {
     );
   }
 }
-

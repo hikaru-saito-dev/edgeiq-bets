@@ -25,7 +25,6 @@ import {
 } from '@mui/material';
 import LocalFireDepartmentIcon from '@mui/icons-material/LocalFireDepartment';
 import CloseIcon from '@mui/icons-material/Close';
-import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import LaunchIcon from '@mui/icons-material/Launch';
 import { useState, useEffect } from 'react';
 import { useToast } from './ToastProvider';
@@ -81,10 +80,7 @@ export default function LeaderboardTable() {
     setSelectedCompany(null);
   };
 
-  const copyAffiliateLink = (link: string) => {
-    navigator.clipboard.writeText(link);
-    toast.showSuccess('Affiliate link copied to clipboard!');
-  };
+  // Removed unused copyAffiliateLink function
 
   const fetchLeaderboard = async () => {
     setLoading(true);
@@ -203,11 +199,11 @@ export default function LeaderboardTable() {
                     <TableCell>
                       <Box display="flex" alignItems="center" gap={1}>
                         <Avatar src={entry.whopAvatarUrl} sx={{ width: 32, height: 32 }}>
-                          {(entry.whopDisplayName || entry.alias || '?').charAt(0).toUpperCase()}
+                          {(entry.alias || entry.whopDisplayName || '?').charAt(0).toUpperCase()}
                         </Avatar>
                         <Box>
                           <Typography variant="body2" sx={{ color: '#fff', fontWeight: 500 }}>
-                            {entry.whopDisplayName || entry.alias}
+                            {entry.alias || entry.whopDisplayName}
                           </Typography>
                           {entry.whopUsername && (
                             <Typography variant="caption" sx={{ color: '#a1a1aa' }}>

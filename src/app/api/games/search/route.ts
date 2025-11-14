@@ -2,31 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 
 export const runtime = 'nodejs';
 
-/**
- * Sports supported by BOTH The Odds API and SportsData.io
- * Only sports with player stats endpoints: NFL, CFB, CBB, NBA, NHL, MLB
- */
-const SUPPORTED_SPORT_KEYS = new Set([
-  // NFL
-  'americanfootball_nfl',
-  // College Football (CFB)
-  'americanfootball_ncaaf',
-  // College Basketball (CBB)
-  'basketball_ncaab',
-  // NBA
-  'basketball_nba',
-  // NHL
-  'icehockey_nhl',
-  // MLB
-  'baseball_mlb',
-]);
-
-/**
- * Check if a sport key is supported by both APIs
- */
-function isSportSupportedByBothAPIs(sportKey: string): boolean {
-  return SUPPORTED_SPORT_KEYS.has(sportKey);
-}
+// Removed unused constants and functions
 
 /**
  * Fetch available sports from The Odds API
