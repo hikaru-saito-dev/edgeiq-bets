@@ -190,9 +190,10 @@ function parseMessageToEmbed(message: string): {
  * 
  * @param message - The message content to send
  * @param webhookUrl - The webhook URL (Discord or Whop)
+ * @param imageUrl - Optional image URL to include in the embed
  * @returns Promise that resolves when message is sent (or fails silently)
  */
-async function sendWebhookMessage(message: string, webhookUrl: string): Promise<void> {
+async function sendWebhookMessage(message: string, webhookUrl: string, imageUrl?: string): Promise<void> {
   if (!webhookUrl || !message.trim()) {
     return;
   }
@@ -213,6 +214,7 @@ async function sendWebhookMessage(message: string, webhookUrl: string): Promise<
           fields?: Array<{ name: string; value: string; inline?: boolean }>;
           color?: number;
           footer?: { text: string };
+          image?: { url: string };
           timestamp: string;
         } = {
           title: embed.title,
@@ -230,6 +232,9 @@ async function sendWebhookMessage(message: string, webhookUrl: string): Promise<
         }
         if (embed.footer) {
           embedPayload.footer = embed.footer;
+        }
+        if (imageUrl) {
+          embedPayload.image = { url: imageUrl };
         }
 
         payload = {
@@ -273,8 +278,9 @@ async function sendWebhookMessage(message: string, webhookUrl: string): Promise<
  * 
  * @param message - The formatted message to send
  * @param user - The user to send the message to (must be owner or admin)
+ * @param imageUrl - Optional image URL to include in the embed
  */
-async function sendMessageToUser(message: string, user: IUser | null | undefined): Promise<void> {
+async function sendMessageToUser(message: string, user: IUser | null | undefined, imageUrl?: string): Promise<void> {
   if (!user || (user.role !== 'companyOwner' && user.role !== 'owner' && user.role !== 'admin')) {
     return;
   }
@@ -284,10 +290,10 @@ async function sendMessageToUser(message: string, user: IUser | null | undefined
     const webhookPromises: Promise<void>[] = [];
 
     if (user.discordWebhookUrl) {
-      webhookPromises.push(sendWebhookMessage(message, user.discordWebhookUrl));
+      webhookPromises.push(sendWebhookMessage(message, user.discordWebhookUrl, imageUrl));
     }
     if (user.whopWebhookUrl) {
-      webhookPromises.push(sendWebhookMessage(message, user.whopWebhookUrl));
+      webhookPromises.push(sendWebhookMessage(message, user.whopWebhookUrl, imageUrl));
     }
 
     // Send to all configured webhooks in parallel
@@ -497,9 +503,7 @@ export async function notifyBetCreated(bet: IBet, user?: IUser | null, _companyI
   if (bet.notes) {
     messageLines.push(`Notes: ${bet.notes}`);
   }
-  if (bet.slipImageUrl) {
-    messageLines.push(`Slip: ${bet.slipImageUrl}`);
-  }
+  // Note: slipImageUrl is not added to messageLines - it will be sent as embed image
 
   if (bet.marketType === 'Parlay') {
     const legDetails = await getParlayLegDetails(bet);
@@ -508,7 +512,7 @@ export async function notifyBetCreated(bet: IBet, user?: IUser | null, _companyI
     }
   }
 
-  await sendMessageToUser(messageLines.join('\n'), user);
+  await sendMessageToUser(messageLines.join('\n'), user, bet.slipImageUrl);
 }
 
 export async function notifyBetUpdated(bet: IBet, user?: IUser | null, updatedFields?: Record<string, unknown>): Promise<void> {
