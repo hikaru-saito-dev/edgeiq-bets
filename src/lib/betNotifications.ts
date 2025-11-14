@@ -5,8 +5,188 @@ import { User } from '@/models/User';
 import connectDB from '@/lib/db';
 
 /**
+ * Check if a webhook URL supports embeds (Discord and Whop both support embeds)
+ */
+function supportsEmbeds(url: string): boolean {
+  try {
+    const urlObj = new URL(url);
+    // Both Discord and Whop webhooks support embeds
+    return urlObj.hostname.includes('discord.com') || 
+           urlObj.hostname.includes('discordapp.com') ||
+           urlObj.hostname.includes('whop.com');
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Parse message text into Discord embed structure
+ */
+function parseMessageToEmbed(message: string): {
+  title: string;
+  description?: string;
+  fields?: Array<{ name: string; value: string; inline?: boolean }>;
+  color?: number;
+  footer?: { text: string };
+} | null {
+  const lines = message.split('\n').filter(line => line.trim());
+  if (lines.length === 0) return null;
+
+  // Extract title (first line with emoji and bold)
+  const titleLine = lines[0];
+  const titleMatch = titleLine.match(/^([🆕✏️🗑️✅❌➖⚪⏳])\s*\*\*(.+?)\*\*/);
+  const title = titleMatch ? titleMatch[2] : titleLine.replace(/\*\*/g, '').trim();
+  
+  // Determine color based on emoji/type
+  let color: number | undefined;
+  if (titleLine.includes('🆕')) color = 0x6366f1; // Indigo for new
+  else if (titleLine.includes('✏️')) color = 0xf59e0b; // Amber for update
+  else if (titleLine.includes('🗑️')) color = 0xef4444; // Red for delete
+  else if (titleLine.includes('✅')) color = 0x10b981; // Green for win
+  else if (titleLine.includes('❌')) color = 0xef4444; // Red for loss
+  else if (titleLine.includes('➖')) color = 0x6b7280; // Gray for push
+  else if (titleLine.includes('⚪')) color = 0x9ca3af; // Light gray for void
+  else color = 0x6366f1; // Default indigo
+
+  // Parse fields from remaining lines
+  const fields: Array<{ name: string; value: string; inline?: boolean }> = [];
+  let currentSection: string | null = null;
+  let currentSectionLines: string[] = [];
+
+  for (let i = 1; i < lines.length; i++) {
+    const line = lines[i].trim();
+    
+    // Check if this is a section header (ends with colon, no value after it, and next line is likely a bullet)
+    // Section headers like "Parlay Legs:" or "Changes:" are followed by bullet points
+    const isSectionHeader = line.endsWith(':') && 
+      (line.split(':').length === 2) && 
+      (i + 1 < lines.length && lines[i + 1]?.trim().startsWith('•'));
+    
+    if (isSectionHeader) {
+      // Save previous section if exists
+      if (currentSection && currentSectionLines.length > 0) {
+        fields.push({
+          name: currentSection,
+          value: currentSectionLines.join('\n'),
+          inline: false,
+        });
+      }
+      currentSection = line.slice(0, -1).trim(); // Remove colon
+      currentSectionLines = [];
+      continue;
+    }
+
+    // Check if this is a key-value pair (contains ": " but not a bullet)
+    const kvMatch = line.match(/^([^:•]+?):\s*(.+)$/);
+    if (kvMatch && !line.startsWith('•')) {
+      const key = kvMatch[1].trim();
+      const value = kvMatch[2].trim();
+      
+      // Special handling for certain fields
+      if (key === 'User' || key === 'Event' || key === 'Market') {
+        fields.push({
+          name: key,
+          value: value.replace(/\*\*/g, ''),
+          inline: key !== 'Event' && key !== 'Market',
+        });
+      } else if (key === 'Stake' || key === 'Odds' || key === 'Start' || key === 'Book') {
+        fields.push({
+          name: key,
+          value: value.replace(/\*\*/g, ''),
+          inline: true,
+        });
+      } else if (key.startsWith('Units') || key.startsWith('Total Units')) {
+        fields.push({
+          name: key,
+          value: value.replace(/\*\*/g, ''),
+          inline: true,
+        });
+      } else if (key === 'Notes') {
+        fields.push({
+          name: key,
+          value: value.replace(/\*\*/g, ''),
+          inline: false,
+        });
+      } else if (key === 'Slip') {
+        // Skip slip URL as field, will be in description if needed
+        continue;
+      } else {
+        fields.push({
+          name: key,
+          value: value.replace(/\*\*/g, ''),
+          inline: false,
+        });
+      }
+    } else if (line.startsWith('•')) {
+      // Bullet point - add to current section or create new field
+      const cleanLine = line.replace(/^•\s*/, '').replace(/\*\*/g, '');
+      if (currentSection) {
+        currentSectionLines.push(cleanLine);
+      } else {
+        // Create a field for this bullet
+        fields.push({
+          name: '\u200b', // Zero-width space
+          value: cleanLine,
+          inline: false,
+        });
+      }
+    } else {
+      // Regular text line
+      if (currentSection) {
+        currentSectionLines.push(line.replace(/\*\*/g, ''));
+      } else {
+        fields.push({
+          name: '\u200b',
+          value: line.replace(/\*\*/g, ''),
+          inline: false,
+        });
+      }
+    }
+  }
+
+  // Save last section if exists
+  if (currentSection && currentSectionLines.length > 0) {
+    fields.push({
+      name: currentSection,
+      value: currentSectionLines.join('\n'),
+      inline: false,
+    });
+  }
+
+  // Extract timestamp from "Start:" field if exists
+  let footer: { text: string } | undefined;
+  const startField = fields.find(f => f.name === 'Start');
+  if (startField) {
+    footer = { text: `Start: ${startField.value}` };
+  }
+
+  const result: {
+    title: string;
+    description?: string;
+    fields?: Array<{ name: string; value: string; inline?: boolean }>;
+    color?: number;
+    footer?: { text: string };
+  } = {
+    title,
+    color,
+  };
+
+  if (fields.length === 0) {
+    result.description = message.replace(/\*\*/g, '');
+  } else {
+    result.fields = fields;
+  }
+
+  if (footer) {
+    result.footer = footer;
+  }
+
+  return result;
+}
+
+/**
  * Send message via webhook (works for both Discord and Whop webhooks)
- * Whop chat webhooks are compatible with Discord's webhook API
+ * Both Discord and Whop webhooks support embeds
  * 
  * @param message - The message content to send
  * @param webhookUrl - The webhook URL (Discord or Whop)
@@ -18,12 +198,51 @@ async function sendWebhookMessage(message: string, webhookUrl: string): Promise<
   }
 
   try {
-    // Both Discord and Whop webhooks support the same format
-    // Discord/Whop support **bold**, *italic*, etc.
-    // No need to modify the message - webhooks handle markdown natively
-    const payload = {
-      content: message,
-    };
+    const useEmbeds = supportsEmbeds(webhookUrl);
+    
+    let payload: { content?: string; embeds?: Array<unknown> };
+    
+    if (useEmbeds) {
+      // Parse message into embed format (works for both Discord and Whop)
+      const embed = parseMessageToEmbed(message);
+      
+      if (embed) {
+        const embedPayload: {
+          title: string;
+          description?: string;
+          fields?: Array<{ name: string; value: string; inline?: boolean }>;
+          color?: number;
+          footer?: { text: string };
+          timestamp: string;
+        } = {
+          title: embed.title,
+          timestamp: new Date().toISOString(),
+        };
+
+        if (embed.description) {
+          embedPayload.description = embed.description;
+        }
+        if (embed.fields && embed.fields.length > 0) {
+          embedPayload.fields = embed.fields;
+        }
+        if (embed.color) {
+          embedPayload.color = embed.color;
+        }
+        if (embed.footer) {
+          embedPayload.footer = embed.footer;
+        }
+
+        payload = {
+          embeds: [embedPayload],
+        };
+      } else {
+        // Fallback to plain text if parsing fails
+        payload = { content: message };
+      }
+    } else {
+      // Unknown webhook type - use plain text
+      payload = { content: message };
+    }
 
     const response = await fetch(webhookUrl, {
       method: 'POST',
