@@ -142,38 +142,39 @@ const propTypesBySport: Record<string, string[]> = {
 
 // Helper function to get prop types for a sport
 function getPropTypesForSport(sportKey?: string, sport?: string): string[] {
-  if (sportKey && propTypesBySport[sportKey]) {
-    return propTypesBySport[sportKey];
-  }
+  let propList: string[] | undefined;
 
-  // Fallback: try to match by sport name
-  if (sport) {
+  if (sportKey && propTypesBySport[sportKey]) {
+    propList = propTypesBySport[sportKey];
+  } else if (sport) {
     const sportLower = sport.toLowerCase();
-    // Try to find matching sport key
     for (const [key, props] of Object.entries(propTypesBySport)) {
       if (key.includes(sportLower) || sportLower.includes(key.split('_').pop() || '')) {
-        return props;
+        propList = props;
+        break;
       }
     }
 
-    // Direct sport name mapping
-    const sportMap: Record<string, string[]> = {
-      'nfl': propTypesBySport['americanfootball_nfl'] || [],
-      'ncaaf': propTypesBySport['americanfootball_ncaaf'] || [],
-      'nba': propTypesBySport['basketball_nba'] || [],
-      'ncaab': propTypesBySport['basketball_ncaab'] || [],
-      'mlb': propTypesBySport['baseball_mlb'] || [],
-      'nhl': propTypesBySport['icehockey_nhl'] || [],
-      'mls': propTypesBySport['soccer_usa_mls'] || [],
-    };
+    if (!propList) {
+      const sportMap: Record<string, string[]> = {
+        'nfl': propTypesBySport['americanfootball_nfl'] || [],
+        'ncaaf': propTypesBySport['americanfootball_ncaaf'] || [],
+        'nba': propTypesBySport['basketball_nba'] || [],
+        'ncaab': propTypesBySport['basketball_ncaab'] || [],
+        'mlb': propTypesBySport['baseball_mlb'] || [],
+        'nhl': propTypesBySport['icehockey_nhl'] || [],
+        'mls': propTypesBySport['soccer_usa_mls'] || [],
+      };
 
-    if (sportMap[sportLower]) {
-      return sportMap[sportLower];
+      propList = sportMap[sportLower];
     }
   }
 
-  // Default: return all prop types if no match
-  return Object.values(propTypesBySport).flat();
+  if (!propList) {
+    propList = Object.values(propTypesBySport).flat();
+  }
+
+  return Array.from(new Set(propList));
 }
 
 interface Game {
@@ -1352,4 +1353,5 @@ export default function CreateBetForm({ open, onClose, onSuccess }: CreateBetFor
     </Dialog>
   );
 }
+
 
