@@ -82,9 +82,7 @@ export default function UsersPage() {
     }
     try {
       // Only show loading on initial load, not on search/pagination
-      if (users.length === 0) {
-        setLoading(true);
-      }
+      
       const params = new URLSearchParams({ page: String(page), pageSize: String(pageSize) });
       if (search.trim()) params.set('search', search.trim());
       const response = await fetch(`/api/users?${params.toString()}`, {
