@@ -42,17 +42,19 @@ interface MembershipPlan {
 
 interface LeaderboardEntry {
   rank: number;
-  companyId: string;
-  companyName: string;
+  userId: string;
+  alias: string;
   whopName?: string;
+  whopDisplayName?: string;
+  whopUsername?: string;
   whopAvatarUrl?: string;
+  companyId: string;
   membershipPlans?: MembershipPlan[];
   winRate: number;
   roi: number;
   plays: number;
   currentStreak: number;
   longestStreak: number;
-  memberCount: number;
 }
 
 export default function LeaderboardTable() {
@@ -131,7 +133,7 @@ export default function LeaderboardTable() {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             onKeyDown={(e) => { if (e.key === 'Enter') { setPage(1); fetchLeaderboard(); } }}
-            placeholder="Search companies (name)"
+            placeholder="Search users (alias/display/username)"
             style={{ background: 'transparent', border: '1px solid rgba(99,102,241,0.3)', borderRadius: 6, padding: '8px 10px', color: '#fff', width: 260 }}
           />
           <Button variant="outlined" size="small" onClick={() => { setPage(1); fetchLeaderboard(); }}>Search</Button>
@@ -172,7 +174,7 @@ export default function LeaderboardTable() {
             <TableHead>
               <TableRow>
                 <TableCell><strong>Rank</strong></TableCell>
-                <TableCell><strong>Company</strong></TableCell>
+                <TableCell><strong>User</strong></TableCell>
                 <TableCell align="right"><strong>Win %</strong></TableCell>
                 <TableCell align="right"><strong>ROI %</strong></TableCell>
                 <TableCell align="right"><strong>Plays</strong></TableCell>
@@ -190,7 +192,7 @@ export default function LeaderboardTable() {
                 </TableRow>
               ) : (
                 leaderboard.map((entry) => (
-                  <TableRow key={entry.companyId} hover>
+                  <TableRow key={entry.userId} hover>
                     <TableCell>
                       <Chip 
                         label={`#${entry.rank}`}
@@ -201,20 +203,17 @@ export default function LeaderboardTable() {
                     <TableCell>
                       <Box display="flex" alignItems="center" gap={1}>
                         <Avatar src={entry.whopAvatarUrl} sx={{ width: 32, height: 32 }}>
-                          {(entry.companyName || '?').charAt(0).toUpperCase()}
+                          {(entry.whopDisplayName || entry.alias || '?').charAt(0).toUpperCase()}
                         </Avatar>
                         <Box>
                           <Typography variant="body2" sx={{ color: '#fff', fontWeight: 500 }}>
-                            {entry.companyName}
+                            {entry.whopDisplayName || entry.alias}
                           </Typography>
-                          {entry.whopName && entry.whopName !== entry.companyName && (
+                          {entry.whopUsername && (
                             <Typography variant="caption" sx={{ color: '#a1a1aa' }}>
-                              {entry.whopName}
+                              @{entry.whopUsername}
                             </Typography>
                           )}
-                          <Typography variant="caption" sx={{ color: '#6366f1', display: 'block', mt: 0.25 }}>
-                            {entry.memberCount} {entry.memberCount === 1 ? 'member' : 'members'}
-                          </Typography>
                         </Box>
                       </Box>
                     </TableCell>
@@ -299,14 +298,19 @@ export default function LeaderboardTable() {
           <Box display="flex" alignItems="center" gap={2}>
             {selectedCompany?.whopAvatarUrl && (
               <Avatar src={selectedCompany.whopAvatarUrl} sx={{ width: 40, height: 40 }}>
-                {selectedCompany.companyName.charAt(0).toUpperCase()}
+                {(selectedCompany.whopDisplayName || selectedCompany.alias || '?').charAt(0).toUpperCase()}
               </Avatar>
             )}
             <Box>
               <Typography variant="h6" sx={{ color: '#ffffff', fontWeight: 600 }}>
-                {selectedCompany?.companyName}
+                {selectedCompany?.whopDisplayName || selectedCompany?.alias}
               </Typography>
-              <Typography variant="caption" sx={{ color: '#a1a1aa' }}>
+              {selectedCompany?.whopUsername && (
+                <Typography variant="caption" sx={{ color: '#a1a1aa' }}>
+                  @{selectedCompany.whopUsername}
+                </Typography>
+              )}
+              <Typography variant="caption" sx={{ color: '#a1a1aa', display: 'block', mt: 0.5 }}>
                 Membership Plans
               </Typography>
             </Box>
@@ -367,81 +371,28 @@ export default function LeaderboardTable() {
                   </Box>
                   
                   {plan.affiliateLink && (
-                    <Box
-                      mt={2}
-                      p={2}
-                      sx={{
-                        background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.15), rgba(236, 72, 153, 0.1))',
-                        borderRadius: 2,
-                        border: '1px solid rgba(99, 102, 241, 0.3)',
-                      }}
-                    >
-                      <Box display="flex" justifyContent="space-between" alignItems="flex-start" gap={2}>
-                        <Box flex={1} minWidth={0}>
-                          <Typography
-                            variant="caption"
-                            sx={{
-                              color: '#a1a1aa',
-                              display: 'block',
-                              mb: 1,
-                              fontWeight: 500,
-                              textTransform: 'uppercase',
-                              letterSpacing: '0.5px',
-                            }}
-                          >
-                            Affiliate Link
-                          </Typography>
-                          <Typography
-                            variant="body2"
-                            sx={{
-                              color: '#6366f1',
-                              wordBreak: 'break-all',
-                              fontFamily: 'monospace',
-                              fontSize: '0.875rem',
-                              background: 'rgba(0, 0, 0, 0.2)',
-                              padding: '8px 12px',
-                              borderRadius: 1,
-                              border: '1px solid rgba(99, 102, 241, 0.2)',
-                            }}
-                          >
-                            {plan.affiliateLink}
-                          </Typography>
-                        </Box>
-                        <Box display="flex" gap={1}>
-                          <IconButton
-                            onClick={() => copyAffiliateLink(plan.affiliateLink!)}
-                            size="small"
-                            sx={{
-                              color: '#6366f1',
-                              background: 'rgba(99, 102, 241, 0.1)',
-                              border: '1px solid rgba(99, 102, 241, 0.3)',
-                              '&:hover': {
-                                background: 'rgba(99, 102, 241, 0.2)',
-                                borderColor: '#6366f1',
-                              },
-                            }}
-                            title="Copy affiliate link"
-                          >
-                            <ContentCopyIcon fontSize="small" />
-                          </IconButton>
-                          <IconButton
-                            onClick={() => window.open(plan.affiliateLink!, '_blank', 'noopener,noreferrer')}
-                            size="small"
-                            sx={{
-                              color: '#6366f1',
-                              background: 'rgba(99, 102, 241, 0.1)',
-                              border: '1px solid rgba(99, 102, 241, 0.3)',
-                              '&:hover': {
-                                background: 'rgba(99, 102, 241, 0.2)',
-                                borderColor: '#6366f1',
-                              },
-                            }}
-                            title="Open in new tab"
-                          >
-                            <LaunchIcon fontSize="small" />
-                          </IconButton>
-                        </Box>
-                      </Box>
+                    <Box mt={2} display="flex" gap={1}>
+                      <Button
+                        variant="contained"
+                        fullWidth
+                        onClick={() => window.open(plan.affiliateLink!, '_blank', 'noopener,noreferrer')}
+                        startIcon={<LaunchIcon />}
+                        sx={{
+                          background: 'linear-gradient(135deg, #6366f1, #ec4899)',
+                          color: 'white',
+                          py: 1.5,
+                          fontWeight: 600,
+                          boxShadow: '0 4px 20px rgba(99, 102, 241, 0.3)',
+                          '&:hover': {
+                            background: 'linear-gradient(135deg, #4f46e5, #db2777)',
+                            transform: 'translateY(-2px)',
+                            boxShadow: '0 6px 30px rgba(99, 102, 241, 0.4)',
+                          },
+                          transition: 'all 0.3s ease',
+                        }}
+                      >
+                        View Membership
+                      </Button>
                     </Box>
                   )}
                 </Paper>

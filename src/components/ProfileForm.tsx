@@ -20,21 +20,20 @@ import {
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import DeleteIcon from '@mui/icons-material/Delete';
-import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import LocalFireDepartmentIcon from '@mui/icons-material/LocalFireDepartment';
 import { useToast } from './ToastProvider';
 import { motion } from 'framer-motion';
-import { 
-  PieChart, 
-  Pie, 
-  Cell, 
-  ResponsiveContainer, 
-  Legend, 
-  Tooltip, 
-  BarChart, 
-  Bar, 
-  XAxis, 
-  YAxis, 
+import {
+  PieChart,
+  Pie,
+  Cell,
+  ResponsiveContainer,
+  Legend,
+  Tooltip,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
   CartesianGrid,
   AreaChart,
   Area
@@ -126,13 +125,13 @@ export default function ProfileForm() {
         fetch('/api/user'),
         fetch('/api/bets')
       ]);
-      
+
       if (!profileResponse.ok) throw new Error('Failed to fetch profile');
       if (!betsResponse.ok) throw new Error('Failed to fetch bets');
-      
+
       const profileData = await profileResponse.json();
       const betsData = await betsResponse.json();
-      
+
       setUserData(profileData.user);
       setAlias(profileData.user.alias || profileData.user.whopDisplayName || profileData.user.whopUsername || '');
       setOptIn(profileData.user.optIn);
@@ -146,17 +145,6 @@ export default function ProfileForm() {
       console.error('Error fetching profile:', error);
     } finally {
       setLoading(false);
-    }
-  };
-
-  // Generate affiliate link by appending ?a={username} to base URL
-  const generateAffiliateLink = (baseUrl: string): string => {
-    try {
-      const url = new URL(baseUrl);
-      url.searchParams.set('a', 'woodiee');
-      return url.toString();
-    } catch {
-      return `${baseUrl}${baseUrl.includes('?') ? '&' : '?'}a=woodiee `;
     }
   };
 
@@ -179,15 +167,9 @@ export default function ProfileForm() {
   };
 
   const handleMembershipPlanChange = (id: string, field: string, value: string | boolean) => {
-    setMembershipPlans(membershipPlans.map(plan => 
+    setMembershipPlans(membershipPlans.map(plan =>
       plan.id === id ? { ...plan, [field]: value } : plan
     ));
-  };
-
-  const copyAffiliateLink = (baseUrl: string) => {
-    const affiliateLink = generateAffiliateLink(baseUrl);
-    navigator.clipboard.writeText(affiliateLink);
-    toast.showSuccess('Affiliate link copied to clipboard!');
   };
 
   const handleSave = async () => {
@@ -195,15 +177,15 @@ export default function ProfileForm() {
     setSaving(true);
     try {
       // Validate membership plans
-      const validPlans = membershipPlans.filter(plan => 
+      const validPlans = membershipPlans.filter(plan =>
         plan.name.trim() && plan.url.trim() && plan.price.trim()
       );
 
       const response = await fetch('/api/user', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          alias, 
+        body: JSON.stringify({
+          alias,
           optIn,
           whopWebhookUrl: whopWebhookUrl || undefined,
           discordWebhookUrl: discordWebhookUrl || undefined,
@@ -237,13 +219,13 @@ export default function ProfileForm() {
           animate={{ opacity: 1, scale: 1 }}
           transition={{ duration: 0.3 }}
         >
-          <CircularProgress 
+          <CircularProgress
             size={60}
             thickness={4}
-            sx={{ 
+            sx={{
               color: '#6366f1',
               filter: 'drop-shadow(0 0 10px rgba(99, 102, 241, 0.5))',
-            }} 
+            }}
           />
         </motion.div>
         <motion.div
@@ -251,9 +233,9 @@ export default function ProfileForm() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.3, delay: 0.1 }}
         >
-          <Typography 
-            variant="h6" 
-            sx={{ 
+          <Typography
+            variant="h6"
+            sx={{
               color: '#a1a1aa',
               fontWeight: 500,
               background: 'linear-gradient(135deg, #6366f1 0%, #ec4899 100%)',
@@ -316,19 +298,19 @@ export default function ProfileForm() {
   // Prepare time series data for line charts
   const prepareTimeSeriesData = () => {
     if (!bets || bets.length === 0) return [];
-    
+
     const settledBets = bets.filter(bet => bet.result !== 'pending');
     if (settledBets.length === 0) return [];
 
     // Group by date and calculate cumulative stats
     const dateMap = new Map<string, { date: string; wins: number; losses: number; unitsPL: number; roi: number; total: number }>();
-    
+
     settledBets
       .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
       .forEach((bet) => {
         const date = new Date(bet.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
         const existing = dateMap.get(date) || { date, wins: 0, losses: 0, unitsPL: 0, roi: 0, total: 0 };
-        
+
         if (bet.result === 'win') {
           existing.wins += 1;
           existing.unitsPL += (bet.odds - 1) * bet.units;
@@ -337,9 +319,9 @@ export default function ProfileForm() {
           existing.unitsPL -= bet.units;
         }
         existing.total += 1;
-        
+
         existing.roi = existing.total > 0 ? (existing.unitsPL / (existing.total * bet.units)) * 100 : 0;
-        
+
         dateMap.set(date, existing);
       });
 
@@ -352,10 +334,10 @@ export default function ProfileForm() {
       cumulativeWins += day.wins;
       cumulativeUnitsPL += day.unitsPL;
       cumulativeTotal += day.total;
-      
+
       const winRate = cumulativeTotal > 0 ? (cumulativeWins / cumulativeTotal) * 100 : 0;
       const roi = cumulativeTotal > 0 ? (cumulativeUnitsPL / (cumulativeTotal * (bets[0]?.units || 1))) * 100 : 0;
-      
+
       return {
         date: day.date,
         winRate: parseFloat(winRate.toFixed(2)),
@@ -530,7 +512,7 @@ export default function ProfileForm() {
             Membership Plans
           </Typography>
           <Typography variant="body2" sx={{ color: '#a1a1aa' }}>
-            Add your Whop product page URLs to generate affiliate links
+            Add your whop link that you want connected to the leaderboard
           </Typography>
         </Box>
 
@@ -724,67 +706,6 @@ export default function ProfileForm() {
                 },
               }}
             />
-
-            {plan.url && (
-              <Box
-                mt={2}
-                p={2}
-                sx={{
-                  background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.15), rgba(236, 72, 153, 0.1))',
-                  borderRadius: 2,
-                  border: '1px solid rgba(99, 102, 241, 0.3)',
-                }}
-              >
-                <Box display="flex" justifyContent="space-between" alignItems="flex-start" gap={2}>
-                  <Box flex={1} minWidth={0}>
-                    <Typography
-                      variant="caption"
-                      sx={{
-                        color: '#a1a1aa',
-                        display: 'block',
-                        mb: 1,
-                        fontWeight: 500,
-                        textTransform: 'uppercase',
-                        letterSpacing: '0.5px',
-                      }}
-                    >
-                      Affiliate Link
-                    </Typography>
-                    <Typography
-                      variant="body2"
-                      sx={{
-                        color: '#6366f1',
-                        wordBreak: 'break-all',
-                        fontFamily: 'monospace',
-                        fontSize: '0.875rem',
-                        background: 'rgba(0, 0, 0, 0.2)',
-                        padding: '8px 12px',
-                        borderRadius: 1,
-                        border: '1px solid rgba(99, 102, 241, 0.2)',
-                      }}
-                    >
-                      {generateAffiliateLink(plan.url)}
-                    </Typography>
-                  </Box>
-                  <IconButton
-                    onClick={() => copyAffiliateLink(plan.url)}
-                    size="small"
-                    sx={{
-                      color: '#6366f1',
-                      background: 'rgba(99, 102, 241, 0.1)',
-                      border: '1px solid rgba(99, 102, 241, 0.3)',
-                      '&:hover': {
-                        background: 'rgba(99, 102, 241, 0.2)',
-                        borderColor: '#6366f1',
-                      },
-                    }}
-                    title="Copy affiliate link"
-                  >
-                    <ContentCopyIcon fontSize="small" />
-                  </IconButton>
-                </Box>
-              </Box>
-            )}
           </Paper>
         ))}
 
@@ -851,13 +772,13 @@ export default function ProfileForm() {
             {/* First Row: Pie Chart and Bar Chart */}
             <Box sx={{ display: 'flex', flexDirection: { xs: 'column', lg: 'row' }, gap: 3 }}>
               {/* Pie Chart */}
-              <Paper sx={{ 
-                p: 3, 
+              <Paper sx={{
+                p: 3,
                 flex: 1,
-                background: 'linear-gradient(135deg, rgba(15, 15, 35, 0.9), rgba(30, 30, 60, 0.8))', 
-                backdropFilter: 'blur(20px)', 
-                border: '1px solid rgba(99, 102, 241, 0.3)', 
-                borderRadius: 2 
+                background: 'linear-gradient(135deg, rgba(15, 15, 35, 0.9), rgba(30, 30, 60, 0.8))',
+                backdropFilter: 'blur(20px)',
+                border: '1px solid rgba(99, 102, 241, 0.3)',
+                borderRadius: 2
               }}>
                 <Typography variant="h6" mb={2} sx={{ color: '#ffffff', fontWeight: 600 }}>
                   Bet Results Breakdown
@@ -879,15 +800,15 @@ export default function ProfileForm() {
                           <Cell key={`cell-${index}`} fill={entry.color} />
                         ))}
                       </Pie>
-                      <Tooltip 
-                        contentStyle={{ 
-                          backgroundColor: 'rgba(15, 15, 35, 0.95)', 
+                      <Tooltip
+                        contentStyle={{
+                          backgroundColor: 'rgba(15, 15, 35, 0.95)',
                           border: '1px solid rgba(99, 102, 241, 0.3)',
                           borderRadius: '8px',
                           color: '#ffffff'
                         }}
                       />
-                      <Legend 
+                      <Legend
                         wrapperStyle={{ color: '#ffffff' }}
                       />
                     </PieChart>
@@ -902,172 +823,172 @@ export default function ProfileForm() {
                 )}
               </Paper>
 
-                {/* Bar Chart */}
-                <Paper sx={{ 
-                  p: 3, 
+              {/* Bar Chart */}
+              <Paper sx={{
+                p: 3,
+                flex: 1,
+                background: 'linear-gradient(135deg, rgba(15, 15, 35, 0.9), rgba(30, 30, 60, 0.8))',
+                backdropFilter: 'blur(20px)',
+                border: '1px solid rgba(99, 102, 241, 0.3)',
+                borderRadius: 2
+              }}>
+                <Typography variant="h6" mb={2} sx={{ color: '#ffffff', fontWeight: 600 }}>
+                  Bet Results Comparison
+                </Typography>
+                {barData.length > 0 && barData.some(d => d.value > 0) ? (
+                  <ResponsiveContainer width="100%" height={300}>
+                    <BarChart data={barData}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(99, 102, 241, 0.2)" />
+                      <XAxis
+                        dataKey="name"
+                        stroke="#a1a1aa"
+                        tick={{ fill: '#a1a1aa' }}
+                      />
+                      <YAxis
+                        stroke="#a1a1aa"
+                        tick={{ fill: '#a1a1aa' }}
+                      />
+                      <Tooltip
+                        contentStyle={{
+                          backgroundColor: 'rgba(15, 15, 35, 0.95)',
+                          border: '1px solid rgba(99, 102, 241, 0.3)',
+                          borderRadius: '8px',
+                          color: '#ffffff'
+                        }}
+                      />
+                      <Bar dataKey="value" radius={[8, 8, 0, 0]} fill="#6366f1">
+                        {barData.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={entry.color} />
+                        ))}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <Box sx={{ height: 300, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <Typography sx={{ color: '#a1a1aa', textAlign: 'center' }}>
+                      No bet data available yet.<br />
+                      Create your first bet to see the comparison!
+                    </Typography>
+                  </Box>
+                )}
+              </Paper>
+            </Box>
+
+            {/* Second Row: ROI Trend and Units P/L Trend */}
+            {timeSeriesData.length > 0 && (
+              <Box sx={{ display: 'flex', flexDirection: { xs: 'column', lg: 'row' }, gap: 3 }}>
+                {/* ROI Trend Line Chart */}
+                <Paper sx={{
+                  p: 3,
                   flex: 1,
-                  background: 'linear-gradient(135deg, rgba(15, 15, 35, 0.9), rgba(30, 30, 60, 0.8))', 
-                  backdropFilter: 'blur(20px)', 
-                  border: '1px solid rgba(99, 102, 241, 0.3)', 
-                  borderRadius: 2 
+                  background: 'linear-gradient(135deg, rgba(15, 15, 35, 0.9), rgba(30, 30, 60, 0.8))',
+                  backdropFilter: 'blur(20px)',
+                  border: '1px solid rgba(99, 102, 241, 0.3)',
+                  borderRadius: 2
                 }}>
                   <Typography variant="h6" mb={2} sx={{ color: '#ffffff', fontWeight: 600 }}>
-                    Bet Results Comparison
+                    ROI Trend
                   </Typography>
-                  {barData.length > 0 && barData.some(d => d.value > 0) ? (
-                    <ResponsiveContainer width="100%" height={300}>
-                      <BarChart data={barData}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="rgba(99, 102, 241, 0.2)" />
-                        <XAxis 
-                          dataKey="name" 
-                          stroke="#a1a1aa"
-                          tick={{ fill: '#a1a1aa' }}
-                        />
-                        <YAxis 
-                          stroke="#a1a1aa"
-                          tick={{ fill: '#a1a1aa' }}
-                        />
-                        <Tooltip 
-                          contentStyle={{ 
-                            backgroundColor: 'rgba(15, 15, 35, 0.95)', 
-                            border: '1px solid rgba(99, 102, 241, 0.3)',
-                            borderRadius: '8px',
-                            color: '#ffffff'
-                          }}
-                        />
-                        <Bar dataKey="value" radius={[8, 8, 0, 0]} fill="#6366f1">
-                          {barData.map((entry, index) => (
-                            <Cell key={`cell-${index}`} fill={entry.color} />
-                          ))}
-                        </Bar>
-                      </BarChart>
-                    </ResponsiveContainer>
-                  ) : (
-                    <Box sx={{ height: 300, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                      <Typography sx={{ color: '#a1a1aa', textAlign: 'center' }}>
-                        No bet data available yet.<br />
-                        Create your first bet to see the comparison!
-                      </Typography>
-                    </Box>
-                  )}
+                  <ResponsiveContainer width="100%" height={300}>
+                    <AreaChart data={timeSeriesData}>
+                      <defs>
+                        <linearGradient id="roiGradient" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#6366f1" stopOpacity={0.3} />
+                          <stop offset="95%" stopColor="#6366f1" stopOpacity={0} />
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(99, 102, 241, 0.2)" />
+                      <XAxis
+                        dataKey="date"
+                        stroke="#a1a1aa"
+                        tick={{ fill: '#a1a1aa', fontSize: 12 }}
+                      />
+                      <YAxis
+                        stroke="#a1a1aa"
+                        tick={{ fill: '#a1a1aa' }}
+                        label={{ value: 'ROI %', angle: -90, position: 'insideLeft', fill: '#a1a1aa' }}
+                      />
+                      <Tooltip
+                        contentStyle={{
+                          backgroundColor: 'rgba(15, 15, 35, 0.95)',
+                          border: '1px solid rgba(99, 102, 241, 0.3)',
+                          borderRadius: '8px',
+                          color: '#ffffff'
+                        }}
+                      />
+                      <Area
+                        type="monotone"
+                        dataKey="roi"
+                        stroke="#6366f1"
+                        strokeWidth={3}
+                        fillOpacity={1}
+                        fill="url(#roiGradient)"
+                      />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </Paper>
+
+                {/* Units P/L Trend */}
+                <Paper sx={{
+                  p: 3,
+                  flex: 1,
+                  background: 'linear-gradient(135deg, rgba(15, 15, 35, 0.9), rgba(30, 30, 60, 0.8))',
+                  backdropFilter: 'blur(20px)',
+                  border: '1px solid rgba(99, 102, 241, 0.3)',
+                  borderRadius: 2
+                }}>
+                  <Typography variant="h6" mb={2} sx={{ color: '#ffffff', fontWeight: 600 }}>
+                    Units Profit/Loss Trend
+                  </Typography>
+                  <ResponsiveContainer width="100%" height={300}>
+                    <AreaChart data={timeSeriesData}>
+                      <defs>
+                        <linearGradient id="unitsGradient" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#10b981" stopOpacity={0.3} />
+                          <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(99, 102, 241, 0.2)" />
+                      <XAxis
+                        dataKey="date"
+                        stroke="#a1a1aa"
+                        tick={{ fill: '#a1a1aa', fontSize: 12 }}
+                      />
+                      <YAxis
+                        stroke="#a1a1aa"
+                        tick={{ fill: '#a1a1aa' }}
+                        label={{ value: 'Units', angle: -90, position: 'insideLeft', fill: '#a1a1aa' }}
+                      />
+                      <Tooltip
+                        contentStyle={{
+                          backgroundColor: 'rgba(15, 15, 35, 0.95)',
+                          border: '1px solid rgba(99, 102, 241, 0.3)',
+                          borderRadius: '8px',
+                          color: '#ffffff'
+                        }}
+                      />
+                      <Area
+                        type="monotone"
+                        dataKey="unitsPL"
+                        stroke="#10b981"
+                        strokeWidth={3}
+                        fillOpacity={1}
+                        fill="url(#unitsGradient)"
+                      />
+                    </AreaChart>
+                  </ResponsiveContainer>
                 </Paper>
               </Box>
-
-              {/* Second Row: ROI Trend and Units P/L Trend */}
-              {timeSeriesData.length > 0 && (
-                <Box sx={{ display: 'flex', flexDirection: { xs: 'column', lg: 'row' }, gap: 3 }}>
-                  {/* ROI Trend Line Chart */}
-                  <Paper sx={{ 
-                    p: 3, 
-                    flex: 1,
-                    background: 'linear-gradient(135deg, rgba(15, 15, 35, 0.9), rgba(30, 30, 60, 0.8))', 
-                    backdropFilter: 'blur(20px)', 
-                    border: '1px solid rgba(99, 102, 241, 0.3)', 
-                    borderRadius: 2 
-                  }}>
-                    <Typography variant="h6" mb={2} sx={{ color: '#ffffff', fontWeight: 600 }}>
-                      ROI Trend
-                    </Typography>
-                    <ResponsiveContainer width="100%" height={300}>
-                      <AreaChart data={timeSeriesData}>
-                        <defs>
-                          <linearGradient id="roiGradient" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="5%" stopColor="#6366f1" stopOpacity={0.3}/>
-                            <stop offset="95%" stopColor="#6366f1" stopOpacity={0}/>
-                          </linearGradient>
-                        </defs>
-                        <CartesianGrid strokeDasharray="3 3" stroke="rgba(99, 102, 241, 0.2)" />
-                        <XAxis 
-                          dataKey="date" 
-                          stroke="#a1a1aa"
-                          tick={{ fill: '#a1a1aa', fontSize: 12 }}
-                        />
-                        <YAxis 
-                          stroke="#a1a1aa"
-                          tick={{ fill: '#a1a1aa' }}
-                          label={{ value: 'ROI %', angle: -90, position: 'insideLeft', fill: '#a1a1aa' }}
-                        />
-                        <Tooltip 
-                          contentStyle={{ 
-                            backgroundColor: 'rgba(15, 15, 35, 0.95)', 
-                            border: '1px solid rgba(99, 102, 241, 0.3)',
-                            borderRadius: '8px',
-                            color: '#ffffff'
-                          }}
-                        />
-                        <Area 
-                          type="monotone" 
-                          dataKey="roi" 
-                          stroke="#6366f1" 
-                          strokeWidth={3}
-                          fillOpacity={1}
-                          fill="url(#roiGradient)"
-                        />
-                      </AreaChart>
-                    </ResponsiveContainer>
-                  </Paper>
-
-                  {/* Units P/L Trend */}
-                  <Paper sx={{ 
-                    p: 3, 
-                    flex: 1,
-                    background: 'linear-gradient(135deg, rgba(15, 15, 35, 0.9), rgba(30, 30, 60, 0.8))', 
-                    backdropFilter: 'blur(20px)', 
-                    border: '1px solid rgba(99, 102, 241, 0.3)', 
-                    borderRadius: 2 
-                  }}>
-                    <Typography variant="h6" mb={2} sx={{ color: '#ffffff', fontWeight: 600 }}>
-                      Units Profit/Loss Trend
-                    </Typography>
-                    <ResponsiveContainer width="100%" height={300}>
-                      <AreaChart data={timeSeriesData}>
-                        <defs>
-                          <linearGradient id="unitsGradient" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="5%" stopColor="#10b981" stopOpacity={0.3}/>
-                            <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
-                          </linearGradient>
-                        </defs>
-                        <CartesianGrid strokeDasharray="3 3" stroke="rgba(99, 102, 241, 0.2)" />
-                        <XAxis 
-                          dataKey="date" 
-                          stroke="#a1a1aa"
-                          tick={{ fill: '#a1a1aa', fontSize: 12 }}
-                        />
-                        <YAxis 
-                          stroke="#a1a1aa"
-                          tick={{ fill: '#a1a1aa' }}
-                          label={{ value: 'Units', angle: -90, position: 'insideLeft', fill: '#a1a1aa' }}
-                        />
-                        <Tooltip 
-                          contentStyle={{ 
-                            backgroundColor: 'rgba(15, 15, 35, 0.95)', 
-                            border: '1px solid rgba(99, 102, 241, 0.3)',
-                            borderRadius: '8px',
-                            color: '#ffffff'
-                          }}
-                        />
-                        <Area 
-                          type="monotone" 
-                          dataKey="unitsPL" 
-                          stroke="#10b981" 
-                          strokeWidth={3}
-                          fillOpacity={1}
-                          fill="url(#unitsGradient)"
-                        />
-                      </AreaChart>
-                    </ResponsiveContainer>
-                  </Paper>
-                </Box>
-              )}
-            </Box>
+            )}
+          </Box>
 
           <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
             <Box sx={{ width: { xs: '100%', sm: 'calc(50% - 8px)', md: 'calc(33.333% - 11px)' } }}>
-              <Card sx={{ 
-                background: 'linear-gradient(135deg, rgba(15, 15, 35, 0.9), rgba(30, 30, 60, 0.8))', 
-                backdropFilter: 'blur(20px)', 
-                border: '1px solid rgba(99, 102, 241, 0.3)', 
-                borderRadius: 2 
+              <Card sx={{
+                background: 'linear-gradient(135deg, rgba(15, 15, 35, 0.9), rgba(30, 30, 60, 0.8))',
+                backdropFilter: 'blur(20px)',
+                border: '1px solid rgba(99, 102, 241, 0.3)',
+                borderRadius: 2
               }}>
                 <CardContent>
                   <Typography sx={{ color: '#a1a1aa', mb: 1 }} gutterBottom>
@@ -1078,11 +999,11 @@ export default function ProfileForm() {
               </Card>
             </Box>
             <Box sx={{ width: { xs: '100%', sm: 'calc(50% - 8px)', md: 'calc(33.333% - 11px)' } }}>
-              <Card sx={{ 
-                background: 'linear-gradient(135deg, rgba(15, 15, 35, 0.9), rgba(30, 30, 60, 0.8))', 
-                backdropFilter: 'blur(20px)', 
-                border: '1px solid rgba(99, 102, 241, 0.3)', 
-                borderRadius: 2 
+              <Card sx={{
+                background: 'linear-gradient(135deg, rgba(15, 15, 35, 0.9), rgba(30, 30, 60, 0.8))',
+                backdropFilter: 'blur(20px)',
+                border: '1px solid rgba(99, 102, 241, 0.3)',
+                borderRadius: 2
               }}>
                 <CardContent>
                   <Typography sx={{ color: '#a1a1aa', mb: 1 }} gutterBottom>
@@ -1093,21 +1014,21 @@ export default function ProfileForm() {
               </Card>
             </Box>
             <Box sx={{ width: { xs: '100%', sm: 'calc(50% - 8px)', md: 'calc(33.333% - 11px)' } }}>
-              <Card sx={{ 
-                background: 'linear-gradient(135deg, rgba(15, 15, 35, 0.9), rgba(30, 30, 60, 0.8))', 
-                backdropFilter: 'blur(20px)', 
-                border: '1px solid rgba(99, 102, 241, 0.3)', 
-                borderRadius: 2 
+              <Card sx={{
+                background: 'linear-gradient(135deg, rgba(15, 15, 35, 0.9), rgba(30, 30, 60, 0.8))',
+                backdropFilter: 'blur(20px)',
+                border: '1px solid rgba(99, 102, 241, 0.3)',
+                borderRadius: 2
               }}>
                 <CardContent>
                   <Typography sx={{ color: '#a1a1aa', mb: 1 }} gutterBottom>
                     ROI
                   </Typography>
-                  <Typography 
+                  <Typography
                     variant="h4"
-                    sx={{ 
-                      color: stats.roi >= 0 ? '#10b981' : '#ef4444', 
-                      fontWeight: 700 
+                    sx={{
+                      color: stats.roi >= 0 ? '#10b981' : '#ef4444',
+                      fontWeight: 700
                     }}
                   >
                     {stats.roi >= 0 ? '+' : ''}{stats.roi.toFixed(2)}%
@@ -1116,21 +1037,21 @@ export default function ProfileForm() {
               </Card>
             </Box>
             <Box sx={{ width: { xs: '100%', sm: 'calc(50% - 8px)', md: 'calc(33.333% - 11px)' } }}>
-              <Card sx={{ 
-                background: 'linear-gradient(135deg, rgba(15, 15, 35, 0.9), rgba(30, 30, 60, 0.8))', 
-                backdropFilter: 'blur(20px)', 
-                border: '1px solid rgba(99, 102, 241, 0.3)', 
-                borderRadius: 2 
+              <Card sx={{
+                background: 'linear-gradient(135deg, rgba(15, 15, 35, 0.9), rgba(30, 30, 60, 0.8))',
+                backdropFilter: 'blur(20px)',
+                border: '1px solid rgba(99, 102, 241, 0.3)',
+                borderRadius: 2
               }}>
                 <CardContent>
                   <Typography sx={{ color: '#a1a1aa', mb: 1 }} gutterBottom>
                     Units P/L
                   </Typography>
-                  <Typography 
+                  <Typography
                     variant="h4"
-                    sx={{ 
-                      color: stats.unitsPL >= 0 ? '#10b981' : '#ef4444', 
-                      fontWeight: 700 
+                    sx={{
+                      color: stats.unitsPL >= 0 ? '#10b981' : '#ef4444',
+                      fontWeight: 700
                     }}
                   >
                     {stats.unitsPL >= 0 ? '+' : ''}{stats.unitsPL.toFixed(2)}
@@ -1139,11 +1060,11 @@ export default function ProfileForm() {
               </Card>
             </Box>
             <Box sx={{ width: { xs: '100%', sm: 'calc(50% - 8px)', md: 'calc(33.333% - 11px)' } }}>
-              <Card sx={{ 
-                background: 'linear-gradient(135deg, rgba(15, 15, 35, 0.9), rgba(30, 30, 60, 0.8))', 
-                backdropFilter: 'blur(20px)', 
-                border: '1px solid rgba(99, 102, 241, 0.3)', 
-                borderRadius: 2 
+              <Card sx={{
+                background: 'linear-gradient(135deg, rgba(15, 15, 35, 0.9), rgba(30, 30, 60, 0.8))',
+                backdropFilter: 'blur(20px)',
+                border: '1px solid rgba(99, 102, 241, 0.3)',
+                borderRadius: 2
               }}>
                 <CardContent>
                   <Typography sx={{ color: '#a1a1aa', mb: 1 }} gutterBottom>
@@ -1157,11 +1078,11 @@ export default function ProfileForm() {
               </Card>
             </Box>
             <Box sx={{ width: { xs: '100%', sm: 'calc(50% - 8px)', md: 'calc(33.333% - 11px)' } }}>
-              <Card sx={{ 
-                background: 'linear-gradient(135deg, rgba(15, 15, 35, 0.9), rgba(30, 30, 60, 0.8))', 
-                backdropFilter: 'blur(20px)', 
-                border: '1px solid rgba(99, 102, 241, 0.3)', 
-                borderRadius: 2 
+              <Card sx={{
+                background: 'linear-gradient(135deg, rgba(15, 15, 35, 0.9), rgba(30, 30, 60, 0.8))',
+                backdropFilter: 'blur(20px)',
+                border: '1px solid rgba(99, 102, 241, 0.3)',
+                borderRadius: 2
               }}>
                 <CardContent>
                   <Typography sx={{ color: '#a1a1aa', mb: 1 }} gutterBottom>
@@ -1172,11 +1093,11 @@ export default function ProfileForm() {
               </Card>
             </Box>
             <Box sx={{ width: { xs: '100%', sm: 'calc(50% - 8px)', md: 'calc(33.333% - 11px)' } }}>
-              <Card sx={{ 
-                background: 'linear-gradient(135deg, rgba(15, 15, 35, 0.9), rgba(30, 30, 60, 0.8))', 
-                backdropFilter: 'blur(20px)', 
-                border: '1px solid rgba(99, 102, 241, 0.3)', 
-                borderRadius: 2 
+              <Card sx={{
+                background: 'linear-gradient(135deg, rgba(15, 15, 35, 0.9), rgba(30, 30, 60, 0.8))',
+                backdropFilter: 'blur(20px)',
+                border: '1px solid rgba(99, 102, 241, 0.3)',
+                borderRadius: 2
               }}>
                 <CardContent>
                   <Typography sx={{ color: '#a1a1aa', mb: 1 }} gutterBottom>
@@ -1187,11 +1108,11 @@ export default function ProfileForm() {
               </Card>
             </Box>
             <Box sx={{ width: { xs: '100%', sm: 'calc(50% - 8px)', md: 'calc(33.333% - 11px)' } }}>
-              <Card sx={{ 
-                background: 'linear-gradient(135deg, rgba(15, 15, 35, 0.9), rgba(30, 30, 60, 0.8))', 
-                backdropFilter: 'blur(20px)', 
-                border: '1px solid rgba(99, 102, 241, 0.3)', 
-                borderRadius: 2 
+              <Card sx={{
+                background: 'linear-gradient(135deg, rgba(15, 15, 35, 0.9), rgba(30, 30, 60, 0.8))',
+                backdropFilter: 'blur(20px)',
+                border: '1px solid rgba(99, 102, 241, 0.3)',
+                borderRadius: 2
               }}>
                 <CardContent>
                   <Typography sx={{ color: '#a1a1aa', mb: 1 }} gutterBottom>
