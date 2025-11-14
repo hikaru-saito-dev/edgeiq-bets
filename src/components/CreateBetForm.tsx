@@ -1184,7 +1184,7 @@ export default function CreateBetForm({ open, onClose, onSuccess }: CreateBetFor
               <Box sx={{ flex: 1 }}>
                 <TextField
                   fullWidth
-                  label="Stake (Units) *"
+                  label="Stake (Units)"
                   type="number"
                   value={units}
                   onChange={(e) => setUnits(e.target.value ? parseFloat(e.target.value) : '')}

@@ -572,7 +572,7 @@ export default function ProfileForm() {
 
             <TextField
               fullWidth
-              label="Plan Name *"
+              label="Plan Name"
               value={plan.name}
               onChange={(e) => handleMembershipPlanChange(plan.id, 'name', e.target.value)}
               placeholder="e.g., XX Premium"
@@ -630,7 +630,7 @@ export default function ProfileForm() {
             <Box display="flex" gap={2}>
               <TextField
                 fullWidth
-                label="Price *"
+                label="Price"
                 value={plan.price}
                 onChange={(e) => handleMembershipPlanChange(plan.id, 'price', e.target.value)}
                 placeholder="e.g., $19.99/month or Free"
@@ -677,7 +677,7 @@ export default function ProfileForm() {
 
             <TextField
               fullWidth
-              label="Whop Product Page URL *"
+              label="Whop Product Page URL"
               value={plan.url}
               onChange={(e) => handleMembershipPlanChange(plan.id, 'url', e.target.value)}
               placeholder="https://whop.com/..."
