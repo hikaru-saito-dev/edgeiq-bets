@@ -81,7 +81,10 @@ export default function UsersPage() {
       return;
     }
     try {
-      setLoading(true);
+      // Only show loading on initial load, not on search/pagination
+      if (users.length === 0) {
+        setLoading(true);
+      }
       const params = new URLSearchParams({ page: String(page), pageSize: String(pageSize) });
       if (search.trim()) params.set('search', search.trim());
       const response = await fetch(`/api/users?${params.toString()}`, {
@@ -301,8 +304,28 @@ export default function UsersPage() {
             background: 'rgba(15, 15, 35, 0.8)',
             backdropFilter: 'blur(20px)',
             border: '1px solid rgba(99, 102, 241, 0.3)',
+            position: 'relative',
           }}
         >
+          {loading && users.length > 0 && (
+            <Box
+              sx={{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                right: 0,
+                bottom: 0,
+                background: 'rgba(0, 0, 0, 0.3)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                zIndex: 1,
+                borderRadius: 3,
+              }}
+            >
+              <CircularProgress size={40} sx={{ color: '#6366f1' }} />
+            </Box>
+          )}
           <TableContainer>
             <Table>
               <TableHead>
@@ -314,7 +337,13 @@ export default function UsersPage() {
                 </TableRow>
               </TableHead>
               <TableBody>
-                {users.length === 0 ? (
+                {loading && users.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={4} align="center" sx={{ py: 4 }}>
+                      <CircularProgress size={40} sx={{ color: '#6366f1' }} />
+                    </TableCell>
+                  </TableRow>
+                ) : users.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={4} align="center" sx={{ py: 4 }}>
                       <Typography color="text.secondary">No users found</Typography>

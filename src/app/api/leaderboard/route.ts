@@ -21,41 +21,23 @@ export async function GET(request: NextRequest) {
     const pageSize = Math.min(100, Math.max(1, parseInt(searchParams.get('pageSize') || '10', 10)));
     const search = (searchParams.get('search') || '').trim();
 
-    // Get all owners/admins who opted in
-    const userQuery: Record<string, unknown> = { 
+    // Base query for all owners/admins who opted in
+    const baseQuery: Record<string, unknown> = { 
       optIn: true,
       role: { $in: ['owner', 'admin'] },
     };
     if (companyFilter) {
-      userQuery.companyId = companyFilter;
+      baseQuery.companyId = companyFilter;
     } else if (companyId) {
-      userQuery.companyId = companyId;
+      baseQuery.companyId = companyId;
     }
 
-    // Filter by search if provided
-    if (search) {
-      const regex = new RegExp(search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
-      Object.assign(userQuery, {
-        $or: [
-          { alias: regex },
-          { whopDisplayName: regex },
-          { whopUsername: regex },
-        ],
-      });
-    }
+    // Get ALL users first (for global ranking calculation)
+    const allUsers = await User.find(baseQuery).lean();
 
-    const total = await User.countDocuments(userQuery);
-
-    // Fetch page of users only
-    const users = await User.find(userQuery)
-      .sort({ createdAt: -1 })
-      .skip((page - 1) * pageSize)
-      .limit(pageSize)
-      .lean();
-
-    // Get stats per user
-    const leaderboard = await Promise.all(
-      users.map(async (userRaw) => {
+    // Calculate stats for ALL users to get global ranking
+    const allLeaderboardEntries = await Promise.all(
+      allUsers.map(async (userRaw) => {
         const user = userRaw as unknown as IUser;
         const betsRaw = await Bet.find({ userId: user._id }).lean();
         const bets = filterBetsByDateRange(betsRaw as unknown as IBet[], range);
@@ -142,19 +124,39 @@ export async function GET(request: NextRequest) {
       })
     );
 
-    // Sort by ROI then Win% (page-sized only)
-    leaderboard.sort((a, b) => {
+    // Sort ALL entries by ROI then Win% to get global ranking
+    allLeaderboardEntries.sort((a, b) => {
       if (b.roi !== a.roi) return b.roi - a.roi;
       return b.winRate - a.winRate;
     });
 
-    const rankedLeaderboard = leaderboard.map((entry, index) => ({
+    // Assign global ranks to all entries
+    const globallyRanked = allLeaderboardEntries.map((entry, index) => ({
       ...entry,
-      rank: (page - 1) * pageSize + index + 1,
+      rank: index + 1,
     }));
 
+    // Filter by search if provided
+    let filteredLeaderboard = globallyRanked;
+    if (search) {
+      const regex = new RegExp(search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
+      filteredLeaderboard = globallyRanked.filter((entry) => 
+        regex.test(entry.alias) || 
+        (entry.whopDisplayName && regex.test(entry.whopDisplayName)) ||
+        (entry.whopUsername && regex.test(entry.whopUsername))
+      );
+    }
+
+    const total = filteredLeaderboard.length;
+
+    // Paginate the filtered results
+    const paginatedLeaderboard = filteredLeaderboard.slice(
+      (page - 1) * pageSize,
+      page * pageSize
+    );
+
     return NextResponse.json({ 
-      leaderboard: rankedLeaderboard,
+      leaderboard: paginatedLeaderboard,
       range,
       page,
       pageSize,
