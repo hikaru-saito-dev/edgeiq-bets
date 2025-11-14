@@ -112,8 +112,9 @@ export async function GET() {
     const user = await User.findOne({ whopUserId: userId });
     const hasCompanyId = !!user?.companyId;
     
-    // Users are authorized if they're owner/admin AND have companyId set
-    const isAuthorized = (role === 'owner' || role === 'admin') && hasCompanyId;
+    // Users are authorized if they're owner/admin (they need access to set companyId in profile)
+    // Note: Some features (like creating bets) still require companyId to be set
+    const isAuthorized = role === 'owner' || role === 'admin';
 
     return NextResponse.json({ 
       role, 

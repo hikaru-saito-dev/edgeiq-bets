@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import connectDB from '@/lib/db';
 import { User } from '@/models/User';
-import { verifyWhopUser, getUserRoleFromDB } from '@/lib/whop';
+import { verifyWhopUser } from '@/lib/whop';
 import { z } from 'zod';
 
 export const runtime = 'nodejs';
@@ -25,15 +25,25 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { userId, companyId: companyIdFromAuth } = authInfo;
-    const companyId = companyIdFromAuth || process.env.NEXT_PUBLIC_WHOP_COMPANY_ID;
-    if (!companyId) {
-      return NextResponse.json({ error: 'Company ID not found' }, { status: 400 });
+    const { userId } = authInfo;
+
+    // Find current user by whopUserId (companyId is manually entered, not from Whop auth)
+    const currentUser = await User.findOne({ whopUserId: userId });
+    if (!currentUser) {
+      return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
 
-    const currentUserRole = await getUserRoleFromDB({ userId, companyId });
-    if (currentUserRole !== 'owner') {
+    // Check if user is owner
+    if (currentUser.role !== 'owner') {
       return NextResponse.json({ error: 'Forbidden: Only owners can view users' }, { status: 403 });
+    }
+
+    // Get companyId from the owner's database record
+    const companyId = currentUser.companyId;
+    if (!companyId) {
+      return NextResponse.json({ 
+        error: 'Company ID not set. Please set your company ID in your profile first.' 
+      }, { status: 400 });
     }
 
     // Parse query params
@@ -96,15 +106,25 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { userId: currentUserId, companyId: companyIdFromAuth } = authInfo;
-    const companyId = companyIdFromAuth || process.env.NEXT_PUBLIC_WHOP_COMPANY_ID;
-    if (!companyId) {
-      return NextResponse.json({ error: 'Company ID not found' }, { status: 400 });
+    const { userId: currentUserId } = authInfo;
+
+    // Find current user by whopUserId (companyId is manually entered, not from Whop auth)
+    const currentUser = await User.findOne({ whopUserId: currentUserId });
+    if (!currentUser) {
+      return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
 
-    const currentUserRole = await getUserRoleFromDB({ userId: currentUserId, companyId });
-    if (currentUserRole !== 'owner') {
+    // Check if user is owner
+    if (currentUser.role !== 'owner') {
       return NextResponse.json({ error: 'Forbidden: Only owners can update roles' }, { status: 403 });
+    }
+
+    // Get companyId from the owner's database record
+    const companyId = currentUser.companyId;
+    if (!companyId) {
+      return NextResponse.json({ 
+        error: 'Company ID not set. Please set your company ID in your profile first.' 
+      }, { status: 400 });
     }
 
     const body = await request.json();
