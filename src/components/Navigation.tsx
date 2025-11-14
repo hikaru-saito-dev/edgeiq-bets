@@ -79,7 +79,7 @@ export default function Navigation() {
               Profile
             </Button>
           )}
-          {!loading && role === 'owner' && (
+          {!loading && (role === 'companyOwner' || role === 'owner') && (
             <Button 
               component={Link} 
               href="/users"

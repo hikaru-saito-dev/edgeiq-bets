@@ -68,7 +68,7 @@ interface Bet {
 
 interface UserData {
   alias: string;
-  role: 'owner' | 'admin' | 'member';
+  role: 'companyOwner' | 'owner' | 'admin' | 'member';
   optIn: boolean;
   whopUserId: string;
   companyId?: string;
@@ -94,7 +94,7 @@ interface UserData {
 export default function ProfileForm() {
   const toast = useToast();
   const [alias, setAlias] = useState('');
-  const [role, setRole] = useState<'owner' | 'admin' | 'member'>('member');
+  const [role, setRole] = useState<'companyOwner' | 'owner' | 'admin' | 'member'>('member');
   const [companyId, setCompanyId] = useState('');
   const [companyName, setCompanyName] = useState('');
   const [companyDescription, setCompanyDescription] = useState('');
@@ -215,8 +215,8 @@ export default function ProfileForm() {
         notifyOnSettlement,
       };
 
-      // Only owners can set company info, opt-in, and membership plans
-      if (role === 'owner') {
+      // Only owners and companyOwners can set company info, opt-in, and membership plans
+      if (role === 'owner' || role === 'companyOwner') {
         updateData.companyName = companyName || undefined;
         updateData.companyDescription = companyDescription || undefined;
         updateData.optIn = optIn;
@@ -413,8 +413,8 @@ export default function ProfileForm() {
         </Box>
       </Box>
 
-      {/* Tabs for owners to switch between Personal and Company profiles */}
-      {role === 'owner' && (
+      {/* Tabs for owners and companyOwners to switch between Personal and Company profiles */}
+      {(role === 'owner' || role === 'companyOwner') && (
         <Paper sx={{ mb: 3, background: 'linear-gradient(135deg, rgba(15, 15, 35, 0.9), rgba(30, 30, 60, 0.8))', backdropFilter: 'blur(20px)', border: '1px solid rgba(99, 102, 241, 0.3)', borderRadius: 2 }}>
           <Tabs
             value={activeTab}
@@ -442,7 +442,7 @@ export default function ProfileForm() {
       )}
 
       {/* Personal Profile Tab */}
-      {(activeTab === 'personal' || role !== 'owner') && (
+        {(activeTab === 'personal' || (role !== 'owner' && role !== 'companyOwner')) && (
         <Paper sx={{ p: 3, mb: 3, background: 'linear-gradient(135deg, rgba(15, 15, 35, 0.9), rgba(30, 30, 60, 0.8))', backdropFilter: 'blur(20px)', border: '1px solid rgba(99, 102, 241, 0.3)', borderRadius: 2 }}>
           <Typography variant="h6" sx={{ color: '#ffffff', mb: 3, fontWeight: 600 }}>
             Personal Profile
@@ -481,10 +481,11 @@ export default function ProfileForm() {
         </Typography>
         <TextField
           fullWidth
-          label="Company ID *"
+          label="Company ID"
           value={companyId}
           onChange={(e) => setCompanyId(e.target.value)}
           margin="normal"
+          placeholder='Biz ID'
           required
           helperText="Required to create bets and participate in leaderboard"
           sx={{
@@ -627,8 +628,8 @@ export default function ProfileForm() {
       </Paper>
       )}
 
-      {/* Company Profile Tab - Only for owners */}
-      {role === 'owner' && activeTab === 'company' && (
+      {/* Company Profile Tab - Only for owners and companyOwners */}
+      {(role === 'owner' || role === 'companyOwner') && activeTab === 'company' && (
         <Paper sx={{ p: 3, mb: 3, background: 'linear-gradient(135deg, rgba(15, 15, 35, 0.9), rgba(30, 30, 60, 0.8))', backdropFilter: 'blur(20px)', border: '1px solid rgba(99, 102, 241, 0.3)', borderRadius: 2 }}>
           <Typography variant="h6" sx={{ color: '#ffffff', mb: 3, fontWeight: 600 }}>
             Company Profile
@@ -1344,8 +1345,8 @@ export default function ProfileForm() {
         </Box>
       )}
 
-      {/* Company Stats - Only for owners */}
-      {role === 'owner' && companyStats && (
+      {/* Company Stats - Only for owners and companyOwners */}
+      {(role === 'owner' || role === 'companyOwner') && companyStats && (
         <Box mt={4}>
           <Typography variant="h5" component="h2" mb={3} sx={{ color: '#ffffff', fontWeight: 600 }}>
             Company Stats (Aggregated)

@@ -79,9 +79,9 @@ export async function GET() {
     }).lean();
     const personalStats = calculateStats(personalBets as unknown as IBet[]);
 
-    // For owners: also get company stats (aggregated from all company bets)
+    // For owners and companyOwners: also get company stats (aggregated from all company bets)
     let companyStats = null;
-    if (user.role === 'owner' && user.companyId) {
+    if ((user.role === 'owner' || user.role === 'companyOwner') && user.companyId) {
       // Get all users in the same company
       const companyUsers = await User.find({ companyId: user.companyId }).select('_id');
       const companyUserIds = companyUsers.map(u => u._id);
@@ -156,9 +156,9 @@ export async function PATCH(request: NextRequest) {
       user.alias = validated.alias;
     }
 
-    // Update companyId (owners and admins can set)
+    // Update companyId (owners, companyOwners and admins can set)
     if (validated.companyId !== undefined && validated.companyId !== user.companyId) {
-      if (user.role === 'owner') {
+      if (user.role === 'owner' || user.role === 'companyOwner') {
         // Check if another owner already exists for this companyId
         const existingOwner = await User.findOne({ 
           companyId: validated.companyId, 
@@ -175,8 +175,8 @@ export async function PATCH(request: NextRequest) {
       user.companyId = validated.companyId || undefined;
     }
 
-    // Update companyName and companyDescription (only owners)
-    if (user.role === 'owner') {
+    // Update companyName and companyDescription (only owners and companyOwners)
+    if (user.role === 'owner' || user.role === 'companyOwner') {
       if (validated.companyName !== undefined) {
         user.companyName = validated.companyName || undefined;
       }
@@ -197,7 +197,7 @@ export async function PATCH(request: NextRequest) {
       // Admins cannot opt-in or manage membership plans
       if (validated.optIn !== undefined || validated.membershipPlans !== undefined) {
         return NextResponse.json(
-          { error: 'Only owners can opt-in to leaderboard and manage membership plans' },
+          { error: 'Only owners and company owners can opt-in to leaderboard and manage membership plans' },
           { status: 403 }
         );
       }

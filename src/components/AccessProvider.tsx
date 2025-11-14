@@ -2,7 +2,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 
-type AccessRole = 'owner' | 'admin' | 'member' | 'none';
+type AccessRole = 'companyOwner' | 'owner' | 'admin' | 'member' | 'none';
 
 type AccessContextValue = {
   role: AccessRole;
@@ -32,7 +32,7 @@ async function fetchAccessRole(): Promise<{ role: AccessRole; isAuthorized: bool
     const data = await response.json();
     const role = data.role as AccessRole | undefined;
     const isAuthorized = Boolean(data.isAuthorized);
-    if (role === 'owner' || role === 'admin' || role === 'member' || role === 'none') {
+    if (role === 'companyOwner' || role === 'owner' || role === 'admin' || role === 'member' || role === 'none') {
       return { role, isAuthorized };
     }
 

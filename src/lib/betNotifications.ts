@@ -275,7 +275,7 @@ async function sendWebhookMessage(message: string, webhookUrl: string): Promise<
  * @param user - The user to send the message to (must be owner or admin)
  */
 async function sendMessageToUser(message: string, user: IUser | null | undefined): Promise<void> {
-  if (!user || (user.role !== 'owner' && user.role !== 'admin')) {
+  if (!user || (user.role !== 'companyOwner' && user.role !== 'owner' && user.role !== 'admin')) {
     return;
   }
 
@@ -477,7 +477,7 @@ async function getParlayLegDetails(bet: IBet): Promise<string[]> {
 
 export async function notifyBetCreated(bet: IBet, user?: IUser | null, companyId?: string): Promise<void> {
   // Send notification only to the specific user who created the bet
-  if (!user || (user.role !== 'owner' && user.role !== 'admin')) {
+  if (!user || (user.role !== 'companyOwner' && user.role !== 'owner' && user.role !== 'admin')) {
     return;
   }
 
@@ -513,7 +513,7 @@ export async function notifyBetCreated(bet: IBet, user?: IUser | null, companyId
 
 export async function notifyBetUpdated(bet: IBet, user?: IUser | null, updatedFields?: Record<string, unknown>): Promise<void> {
   // Send notification only to the specific user who updated the bet
-  if (!user || (user.role !== 'owner' && user.role !== 'admin')) {
+  if (!user || (user.role !== 'companyOwner' && user.role !== 'owner' && user.role !== 'admin')) {
     return;
   }
 
@@ -548,7 +548,7 @@ export async function notifyBetUpdated(bet: IBet, user?: IUser | null, updatedFi
 
 export async function notifyBetDeleted(bet: IBet, user?: IUser | null): Promise<void> {
   // Send notification only to the specific user who deleted the bet
-  if (!user || (user.role !== 'owner' && user.role !== 'admin')) {
+  if (!user || (user.role !== 'companyOwner' && user.role !== 'owner' && user.role !== 'admin')) {
     return;
   }
 

@@ -157,7 +157,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Check if user is owner or admin
-    if (user.role !== 'owner' && user.role !== 'admin') {
+    if (user.role !== 'companyOwner' && user.role !== 'owner' && user.role !== 'admin') {
       return NextResponse.json({ error: 'Forbidden. Only owners and admins can view bets.' }, { status: 403 });
     }
 
@@ -269,7 +269,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Check if user is owner or admin
-    if (user.role !== 'owner' && user.role !== 'admin') {
+    if (user.role !== 'companyOwner' && user.role !== 'owner' && user.role !== 'admin') {
       return NextResponse.json({ error: 'Forbidden. Only owners and admins can create bets.' }, { status: 403 });
     }
 
@@ -559,7 +559,7 @@ export async function DELETE(request: NextRequest) {
     }
 
     // Check if user is owner or admin
-    if (user.role !== 'owner' && user.role !== 'admin') {
+    if (user.role !== 'companyOwner' && user.role !== 'owner' && user.role !== 'admin') {
       return NextResponse.json({ error: 'Forbidden. Only owners and admins can delete bets.' }, { status: 403 });
     }
 

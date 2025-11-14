@@ -9,7 +9,7 @@ export interface MembershipPlan {
   isPremium?: boolean; // Whether this is a premium/paid plan
 }
 
-export type UserRole = 'owner' | 'admin' | 'member';
+export type UserRole = 'companyOwner' | 'owner' | 'admin' | 'member';
 
 export interface IUser extends Document {
   alias: string;
@@ -17,7 +17,7 @@ export interface IUser extends Document {
   companyId?: string; // Company ID (manually entered, not auto-set from Whop)
   companyName?: string; // Company name (only for owners)
   companyDescription?: string; // Company description (only for owners)
-  role: UserRole; // User role: owner, admin, or member
+  role: UserRole; // User role: companyOwner, owner, admin, or member
   whopName?: string; // Name of the Whop/company
   whopUsername?: string; // Username from Whop profile
   whopDisplayName?: string; // Display name from Whop profile
@@ -54,7 +54,7 @@ const UserSchema = new Schema<IUser>({
   companyId: { type: String, index: true }, // Optional - must be manually entered
   companyName: { type: String, trim: true }, // Company name (only for owners)
   companyDescription: { type: String, trim: true }, // Company description (only for owners)
-  role: { type: String, enum: ['owner', 'admin', 'member'], default: 'member', index: true },
+  role: { type: String, enum: ['companyOwner', 'owner', 'admin', 'member'], default: 'member', index: true },
   whopName: { type: String, trim: true },
   whopUsername: { type: String, trim: true },
   whopDisplayName: { type: String, trim: true },
@@ -79,6 +79,7 @@ const UserSchema = new Schema<IUser>({
 // Compound indexes for efficient queries
 UserSchema.index({ companyId: 1, whopUserId: 1 }, { unique: true, sparse: true }); // Unique user per company (sparse since companyId can be null)
 UserSchema.index({ companyId: 1, role: 1 }, { unique: true, partialFilterExpression: { role: 'owner', companyId: { $exists: true, $ne: null } } }); // Only 1 owner per companyId
+UserSchema.index({ role: 1 }, { unique: true, partialFilterExpression: { role: 'companyOwner' } }); // Only 1 companyOwner in the entire system
 UserSchema.index({ companyId: 1, optIn: 1, 'stats.roi': -1, 'stats.winRate': -1 }); // For company-scoped leaderboard
 
 export const User = (mongoose.models && mongoose.models.User) || mongoose.model<IUser>('User', UserSchema);

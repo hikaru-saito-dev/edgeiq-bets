@@ -34,7 +34,7 @@ import SaveIcon from '@mui/icons-material/Save';
 interface User {
   whopUserId: string;
   alias: string;
-  role: 'owner' | 'admin' | 'member';
+  role: 'companyOwner' | 'owner' | 'admin' | 'member';
   whopUsername?: string;
   whopDisplayName?: string;
   whopAvatarUrl?: string;
@@ -56,7 +56,7 @@ export default function UsersPage() {
   const [search, setSearch] = useState('');
 
   useEffect(() => {
-    if (!accessLoading && currentRole === 'owner') {
+    if (!accessLoading && (currentRole === 'companyOwner' || currentRole === 'owner')) {
       fetchUsers();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -64,7 +64,7 @@ export default function UsersPage() {
 
   // Debounced search-as-you-type
   useEffect(() => {
-    if (!accessLoading && currentRole === 'owner') {
+    if (!accessLoading && (currentRole === 'companyOwner' || currentRole === 'owner')) {
       const handle = setTimeout(() => {
         setPage(1);
         fetchUsers();
@@ -75,7 +75,7 @@ export default function UsersPage() {
   }, [search, accessLoading, currentRole]);
 
   const fetchUsers = async () => {
-    if (!currentRole || currentRole !== 'owner') {
+    if (!currentRole || (currentRole !== 'companyOwner' && currentRole !== 'owner')) {
       setUsers([]);
       setLoading(false);
       return;
@@ -109,7 +109,7 @@ export default function UsersPage() {
     }
   };
 
-  const handleRoleChange = (userId: string, newRole: 'owner' | 'admin' | 'member') => {
+  const handleRoleChange = (userId: string, newRole: 'companyOwner' | 'owner' | 'admin' | 'member') => {
     setRoleChanges((prev) => ({
       ...prev,
       [userId]: newRole,
@@ -156,6 +156,8 @@ export default function UsersPage() {
 
   const getRoleColor = (role: string) => {
     switch (role) {
+      case 'companyOwner':
+        return 'error';
       case 'owner':
         return 'error';
       case 'admin':
@@ -169,6 +171,7 @@ export default function UsersPage() {
 
   const getRoleIcon = (role: string) => {
     switch (role) {
+      case 'companyOwner':
       case 'owner':
       case 'admin':
         return <AdminPanelSettingsIcon sx={{ fontSize: 16 }} />;
@@ -185,7 +188,7 @@ export default function UsersPage() {
     );
   }
 
-  if (currentRole !== 'owner') {
+  if (currentRole !== 'companyOwner' && currentRole !== 'owner') {
     return (
       <Container maxWidth="md" sx={{ py: 6 }}>
         <Paper
@@ -388,9 +391,9 @@ export default function UsersPage() {
                             <Select
                               value={effectiveRole}
                               onChange={(e) =>
-                                handleRoleChange(user.whopUserId, e.target.value as 'owner' | 'admin' | 'member')
+                                handleRoleChange(user.whopUserId, e.target.value as 'companyOwner' | 'owner' | 'admin' | 'member')
                               }
-                              disabled={user.role === 'owner'}
+                              disabled={user.role === 'companyOwner' || (user.role === 'owner' && currentRole !== 'companyOwner')}
                               sx={{
                                 color: 'text.primary',
                                 '& .MuiOutlinedInput-notchedOutline': {
@@ -401,6 +404,7 @@ export default function UsersPage() {
                                 },
                               }}
                             >
+                              {currentRole === 'companyOwner' && <MenuItem value="companyOwner">Company Owner</MenuItem>}
                               <MenuItem value="owner">Owner</MenuItem>
                               <MenuItem value="admin">Admin</MenuItem>
                               <MenuItem value="member">Member</MenuItem>
@@ -488,7 +492,9 @@ export default function UsersPage() {
           <Typography variant="body2">
             <strong>Role Permissions:</strong>
             <br />
-            • <strong>Owner:</strong> Can manage user roles, access bets, profile, and leaderboard
+            • <strong>Company Owner:</strong> Can manage all users, access bets, profile, and leaderboard
+            <br />
+            • <strong>Owner:</strong> Can manage users in their company and users without company, access bets, profile, and leaderboard
             <br />
             • <strong>Admin:</strong> Can access bets, profile, and leaderboard (cannot manage roles)
             <br />

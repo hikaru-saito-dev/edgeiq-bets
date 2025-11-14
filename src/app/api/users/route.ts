@@ -8,7 +8,7 @@ export const runtime = 'nodejs';
 
 const updateRoleSchema = z.object({
   userId: z.string(),
-  role: z.enum(['owner', 'admin', 'member']),
+  role: z.enum(['companyOwner', 'owner', 'admin', 'member']),
 });
 
 /**
@@ -33,17 +33,9 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
 
-    // Check if user is owner
-    if (currentUser.role !== 'owner') {
-      return NextResponse.json({ error: 'Forbidden: Only owners can view users' }, { status: 403 });
-    }
-
-    // Get companyId from the owner's database record
-    const companyId = currentUser.companyId;
-    if (!companyId) {
-      return NextResponse.json({ 
-        error: 'Company ID not set. Please set your company ID in your profile first.' 
-      }, { status: 400 });
+    // Check if user is companyOwner or owner
+    if (currentUser.role !== 'companyOwner' && currentUser.role !== 'owner') {
+      return NextResponse.json({ error: 'Forbidden: Only company owners and owners can view users' }, { status: 403 });
     }
 
     // Parse query params
@@ -52,17 +44,46 @@ export async function GET(request: NextRequest) {
     const pageSize = Math.min(100, Math.max(1, parseInt(searchParams.get('pageSize') || '10', 10)));
     const search = (searchParams.get('search') || '').trim();
 
-    // Build query - show all users (not just those with companyId)
-    // This allows owners to see all users and assign companyId to them
+    // Build query based on role:
+    // - companyOwner: can see ALL users
+    // - owner: can see users in their company OR users without companyId
     const query: Record<string, unknown> = {};
+    
+    if (currentUser.role === 'owner') {
+      // Owner can see users in their company OR users without companyId
+      const companyId = currentUser.companyId;
+      if (!companyId) {
+        return NextResponse.json({ 
+          error: 'Company ID not set. Please set your company ID in your profile first.' 
+        }, { status: 400 });
+      }
+      query.$or = [
+        { companyId },
+        { companyId: { $exists: false } },
+        { companyId: null },
+      ];
+    }
+    // If companyOwner, query remains empty (shows all users)
 
     if (search) {
       const regex = new RegExp(search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
-      query.$or = [
+      const searchConditions = [
         { alias: regex },
         { whopUsername: regex },
         { whopDisplayName: regex },
       ];
+      
+      // Combine search with existing $or if it exists
+      if (query.$or) {
+        // If we already have $or (from owner role filter), combine with AND logic
+        query.$and = [
+          { $or: query.$or },
+          { $or: searchConditions },
+        ];
+        delete query.$or;
+      } else {
+        query.$or = searchConditions;
+      }
     }
 
     // Get total count for pagination
@@ -115,17 +136,9 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
 
-    // Check if user is owner
-    if (currentUser.role !== 'owner') {
-      return NextResponse.json({ error: 'Forbidden: Only owners can update roles' }, { status: 403 });
-    }
-
-    // Get companyId from the owner's database record
-    const companyId = currentUser.companyId;
-    if (!companyId) {
-      return NextResponse.json({ 
-        error: 'Company ID not set. Please set your company ID in your profile first.' 
-      }, { status: 400 });
+    // Check if user is companyOwner or owner
+    if (currentUser.role !== 'companyOwner' && currentUser.role !== 'owner') {
+      return NextResponse.json({ error: 'Forbidden: Only company owners and owners can update roles' }, { status: 403 });
     }
 
     const body = await request.json();
@@ -135,13 +148,61 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: 'Cannot change your own role' }, { status: 400 });
     }
 
-    const targetUser = await User.findOne({ whopUserId: userId, companyId });
+    // Find target user
+    let targetUser;
+    if (currentUser.role === 'companyOwner') {
+      // CompanyOwner can manage any user
+      targetUser = await User.findOne({ whopUserId: userId });
+    } else {
+      // Owner can manage users in their company OR users without companyId
+      const companyId = currentUser.companyId;
+      if (!companyId) {
+        return NextResponse.json({ 
+          error: 'Company ID not set. Please set your company ID in your profile first.' 
+        }, { status: 400 });
+      }
+      targetUser = await User.findOne({
+        whopUserId: userId,
+        $or: [
+          { companyId },
+          { companyId: { $exists: false } },
+          { companyId: null },
+        ],
+      });
+    }
+
     if (!targetUser) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
 
-    if (targetUser.role === 'owner' && role !== 'owner') {
-      return NextResponse.json({ error: 'Cannot remove owner role from another owner' }, { status: 400 });
+    // Prevent role changes that would violate constraints
+    if (targetUser.role === 'companyOwner' && role !== 'companyOwner') {
+      return NextResponse.json({ error: 'Cannot remove company owner role' }, { status: 400 });
+    }
+    if (targetUser.role === 'owner' && role !== 'owner' && currentUser.role !== 'companyOwner') {
+      return NextResponse.json({ error: 'Only company owner can remove owner role from another owner' }, { status: 400 });
+    }
+
+    // If owner is granting a role to a user without companyId, assign owner's companyId
+    if (currentUser.role === 'owner' && !targetUser.companyId && role !== 'member') {
+      const companyId = currentUser.companyId;
+      if (companyId) {
+        // Check if assigning owner role - only one owner per companyId allowed
+        if (role === 'owner') {
+          const existingOwner = await User.findOne({ 
+            companyId, 
+            role: 'owner',
+            _id: { $ne: targetUser._id }
+          });
+          if (existingOwner) {
+            return NextResponse.json(
+              { error: 'Another owner already exists for this company' },
+              { status: 400 }
+            );
+          }
+        }
+        targetUser.companyId = companyId;
+      }
     }
 
     targetUser.role = role;

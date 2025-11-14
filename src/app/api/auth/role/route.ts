@@ -9,7 +9,7 @@ export const runtime = 'nodejs';
  * Ensure user exists in database (create if doesn't exist)
  * companyId is NOT auto-set from Whop - must be manually entered
  */
-async function ensureUserExists(userId: string): Promise<'owner' | 'admin' | 'member' | 'none'> {
+async function ensureUserExists(userId: string): Promise<'companyOwner' | 'owner' | 'admin' | 'member' | 'none'> {
   try {
     await connectDB();
     
@@ -33,7 +33,7 @@ async function ensureUserExists(userId: string): Promise<'owner' | 'admin' | 'me
       user = await User.create({
         whopUserId: userId,
         // companyId is NOT set - must be manually entered by user
-        role: isFirstUserEver ? 'owner' : 'member', // First user becomes owner, others default to member
+        role: isFirstUserEver ? 'companyOwner' : 'member', // First user becomes companyOwner, others default to member
         alias: whopUserData?.name || whopUserData?.username || `User ${userId.slice(0, 8)}`,
         whopUsername: whopUserData?.username,
         whopDisplayName: whopUserData?.name,
@@ -112,9 +112,9 @@ export async function GET() {
     const user = await User.findOne({ whopUserId: userId });
     const hasCompanyId = !!user?.companyId;
     
-    // Users are authorized if they're owner/admin (they need access to set companyId in profile)
+    // Users are authorized if they're companyOwner/owner/admin (they need access to set companyId in profile)
     // Note: Some features (like creating bets) still require companyId to be set
-    const isAuthorized = role === 'owner' || role === 'admin';
+    const isAuthorized = role === 'companyOwner' || role === 'owner' || role === 'admin';
 
     return NextResponse.json({ 
       role, 
