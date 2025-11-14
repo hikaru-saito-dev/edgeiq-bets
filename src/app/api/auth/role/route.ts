@@ -25,11 +25,15 @@ async function ensureUserExists(userId: string): Promise<'owner' | 'admin' | 'me
     }
     
     if (!user) {
+      // Check if this is the very first user in the database (bootstrap owner)
+      const totalUserCount = await User.countDocuments();
+      const isFirstUserEver = totalUserCount === 0;
+      
       // Create user without companyId (must be manually entered)
       user = await User.create({
         whopUserId: userId,
         // companyId is NOT set - must be manually entered by user
-        role: 'member', // Default to member, can be changed to owner/admin by existing owner
+        role: isFirstUserEver ? 'owner' : 'member', // First user becomes owner, others default to member
         alias: whopUserData?.name || whopUserData?.username || `User ${userId.slice(0, 8)}`,
         whopUsername: whopUserData?.username,
         whopDisplayName: whopUserData?.name,
@@ -45,6 +49,13 @@ async function ensureUserExists(userId: string): Promise<'owner' | 'admin' | 'me
         },
       });
     } else {
+      // Bootstrap fix: If this is the only user and they're a member, promote them to owner
+      const totalUserCount = await User.countDocuments();
+      if (totalUserCount === 1 && user.role === 'member') {
+        user.role = 'owner';
+        await user.save();
+      }
+      
       // Update existing user with latest Whop data (especially avatar)
       const updates: {
         whopUsername?: string;
