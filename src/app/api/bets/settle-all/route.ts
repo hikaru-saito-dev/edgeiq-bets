@@ -222,6 +222,32 @@ function getCFBSeasonInfo(gameDate: Date): { season: number; week: number } {
   return { season: year, week: 1 };
 }
 
+// Convert UTC date to Eastern Time date string (for date-based API queries)
+function getEasternDateStr(date: Date): string {
+  try {
+    // Format date in Eastern Time zone
+    const formatter = new Intl.DateTimeFormat('en-US', {
+      timeZone: 'America/New_York',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    });
+    
+    const parts = formatter.formatToParts(date);
+    const year = parts.find(p => p.type === 'year')?.value || '';
+    const month = parts.find(p => p.type === 'month')?.value || '';
+    const day = parts.find(p => p.type === 'day')?.value || '';
+    
+    return `${year}-${month}-${day}`;
+  } catch {
+    // Fallback to UTC date if conversion fails
+    const year = date.getFullYear();
+    const month = date.getMonth() + 1;
+    const day = date.getDate();
+    return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+  }
+}
+
 // Get player stats from SportsData.io
 async function getPlayerStats(
   playerId: number,
@@ -237,10 +263,8 @@ async function getPlayerStats(
     }
 
     const sportPath = sport.toLowerCase();
-    const year = gameDate.getFullYear();
-    const month = gameDate.getMonth() + 1;
-    const day = gameDate.getDate();
-    const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    // Use Eastern Time date for date-based queries (NHL, NBA, MLB)
+    const dateStr = getEasternDateStr(gameDate);
 
     // NFL: PlayerGameStatsByPlayerID/{season}{seasonType}/{week}/{playerId}
     if (sportPath === 'nfl') {
@@ -299,8 +323,8 @@ async function getPlayerStats(
         console.warn(`Failed to fetch ${sportPath.toUpperCase()} player stats: ${response.status} ${response.statusText}`);
       }
     }
-    // NBA, NHL, MLB: PlayerPropsByPlayerID/{date}/{playerId}
-    else if (sportPath === 'nba' || sportPath === 'nhl' || sportPath === 'mlb') {
+    // NBA, MLB: PlayerPropsByPlayerID/{date}/{playerId}
+    else if (sportPath === 'nba' || sportPath === 'mlb') {
       const url = `https://api.sportsdata.io/v3/${sportPath}/odds/json/PlayerPropsByPlayerID/${dateStr}/${playerId}?key=${apiKey}`;
       const response = await fetch(url, {
         next: { revalidate: 3600 },
@@ -330,6 +354,29 @@ async function getPlayerStats(
         }
       } else {
         console.warn(`Failed to fetch ${sportPath.toUpperCase()} player props: ${response.status} ${response.statusText}`);
+      }
+    }
+    // NHL: Use PlayerGameStatsByDate (PlayerPropsByPlayerID doesn't work for NHL)
+    else if (sportPath === 'nhl') {
+      const url = `https://api.sportsdata.io/v3/${sportPath}/stats/json/PlayerGameStatsByDate/${dateStr}?key=${apiKey}`;
+      const response = await fetch(url, {
+        next: { revalidate: 3600 },
+      });
+
+      if (response.ok) {
+        const allPlayerStats = await response.json();
+        
+        if (Array.isArray(allPlayerStats)) {
+          const playerStats = allPlayerStats.find((stat: { PlayerID?: number }) => 
+            stat.PlayerID === playerId
+          );
+          
+          if (playerStats && typeof playerStats === 'object') {
+            return playerStats as Record<string, number>;
+          }
+        }
+      } else {
+        console.warn(`Failed to fetch NHL player stats: ${response.status} ${response.statusText}`);
       }
     }
 
