@@ -511,7 +511,7 @@ export default function ProfileForm() {
         />
 
         {/* Notification Webhooks - For owners and admins */}
-        {(role === 'owner' || role === 'admin') && (
+        {(role === 'companyOwner' || role === 'owner' || role === 'admin') && (
           <>
             <Typography variant="h6" sx={{ color: '#ffffff', mt: 3, mb: 2, fontWeight: 600 }}>
               Notification Webhooks
