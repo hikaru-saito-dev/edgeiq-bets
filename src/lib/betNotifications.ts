@@ -20,63 +20,9 @@ function supportsEmbeds(url: string): boolean {
 }
 
 /**
- * Format date to Discord timestamp format in EST/New York timezone
- * Discord timestamps use UTC Unix timestamps, but we convert the date to EST first
- * to ensure the displayed time matches EST/New York timezone
- */
-function formatDiscordTimestamp(date: Date | string | number): string {
-  try {
-    const dateObj = typeof date === 'string' || typeof date === 'number' 
-      ? new Date(date) 
-      : date;
-    
-    // Get the date/time in EST/New York timezone
-    const formatter = new Intl.DateTimeFormat('en-US', {
-      timeZone: 'America/New_York',
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit',
-      hour12: false,
-    });
-    
-    const parts = formatter.formatToParts(dateObj);
-    const year = parseInt(parts.find(p => p.type === 'year')?.value || '0', 10);
-    const month = parseInt(parts.find(p => p.type === 'month')?.value || '0', 10) - 1;
-    const day = parseInt(parts.find(p => p.type === 'day')?.value || '0', 10);
-    const hour = parseInt(parts.find(p => p.type === 'hour')?.value || '0', 10);
-    const minute = parseInt(parts.find(p => p.type === 'minute')?.value || '0', 10);
-    const second = parseInt(parts.find(p => p.type === 'second')?.value || '0', 10);
-    
-    // Create a UTC date from the EST components
-    // This ensures Discord displays the correct EST time
-    const estAsUTC = new Date(Date.UTC(year, month, day, hour, minute, second));
-    
-    // Get Unix timestamp (seconds)
-    const unixTimestamp = Math.floor(estAsUTC.getTime() / 1000);
-    
-    // Discord timestamp format: <t:UNIX_TIMESTAMP:f>
-    return `<t:${unixTimestamp}:f>`;
-  } catch {
-    // Fallback: use the original date's Unix timestamp
-    try {
-      const dateObj = typeof date === 'string' || typeof date === 'number' 
-        ? new Date(date) 
-        : date;
-      const unixTimestamp = Math.floor(dateObj.getTime() / 1000);
-      return `<t:${unixTimestamp}:f>`;
-    } catch {
-      return '';
-    }
-  }
-}
-
-/**
  * Parse message text into Discord embed structure
  */
-function parseMessageToEmbed(message: string, startTime?: Date | string | number): {
+function parseMessageToEmbed(message: string): {
   title: string;
   description?: string;
   fields?: Array<{ name: string; value: string; inline?: boolean }>;
@@ -210,15 +156,8 @@ function parseMessageToEmbed(message: string, startTime?: Date | string | number
   // Extract timestamp from "Start:" field if exists
   let footer: { text: string } | undefined;
   const startField = fields.find(f => f.name === 'Start');
-  if (startField || startTime) {
-    if (startTime) {
-      // Use provided startTime and format as Discord timestamp
-      const discordTimestamp = formatDiscordTimestamp(startTime);
-      footer = { text: `Start: ${discordTimestamp}` };
-    } else if (startField) {
-      // Fallback to field value if no startTime provided
-      footer = { text: `Start: ${startField.value}` };
-    }
+  if (startField) {
+    footer = { text: `Start: ${startField.value}` };
   }
 
   const result: {
@@ -251,10 +190,9 @@ function parseMessageToEmbed(message: string, startTime?: Date | string | number
  * 
  * @param message - The message content to send
  * @param webhookUrl - The webhook URL (Discord or Whop)
- * @param startTime - Optional start time for Discord timestamp formatting
  * @returns Promise that resolves when message is sent (or fails silently)
  */
-async function sendWebhookMessage(message: string, webhookUrl: string, startTime?: Date | string | number): Promise<void> {
+async function sendWebhookMessage(message: string, webhookUrl: string): Promise<void> {
   if (!webhookUrl || !message.trim()) {
     return;
   }
@@ -266,7 +204,7 @@ async function sendWebhookMessage(message: string, webhookUrl: string, startTime
     
     if (useEmbeds) {
       // Parse message into embed format (works for both Discord and Whop)
-      const embed = parseMessageToEmbed(message, startTime);
+      const embed = parseMessageToEmbed(message);
       
       if (embed) {
         const embedPayload: {
@@ -335,9 +273,8 @@ async function sendWebhookMessage(message: string, webhookUrl: string, startTime
  * 
  * @param message - The formatted message to send
  * @param companyId - Company ID to find owners/admins
- * @param startTime - Optional start time for Discord timestamp formatting
  */
-async function sendMessage(message: string, companyId?: string, startTime?: Date | string | number): Promise<void> {
+async function sendMessage(message: string, companyId?: string): Promise<void> {
   if (!companyId) return;
 
   try {
@@ -356,10 +293,10 @@ async function sendMessage(message: string, companyId?: string, startTime?: Date
 
     for (const user of ownersAndAdmins) {
       if (user.discordWebhookUrl) {
-        webhookPromises.push(sendWebhookMessage(message, user.discordWebhookUrl, startTime));
+        webhookPromises.push(sendWebhookMessage(message, user.discordWebhookUrl));
       }
       if (user.whopWebhookUrl) {
-        webhookPromises.push(sendWebhookMessage(message, user.whopWebhookUrl, startTime));
+        webhookPromises.push(sendWebhookMessage(message, user.whopWebhookUrl));
       }
     }
 
@@ -375,11 +312,14 @@ async function sendMessage(message: string, companyId?: string, startTime?: Date
 
 function formatDate(date: Date): string {
   try {
+    // Show in America/New_York timezone (EST/EDT)
     return new Intl.DateTimeFormat('en-US', {
+      timeZone: 'America/New_York',
       month: 'short',
       day: '2-digit',
       hour: '2-digit',
       minute: '2-digit',
+      hour12: true,
       timeZoneName: 'short',
     }).format(date);
   } catch {
@@ -533,7 +473,7 @@ export async function notifyBetCreated(bet: IBet, user?: IUser | null, companyId
     }
   }
 
-  await sendMessage(messageLines.join('\n'), finalCompanyId, bet.startTime);
+  await sendMessage(messageLines.join('\n'), finalCompanyId);
 }
 
 export async function notifyBetUpdated(bet: IBet, user?: IUser | null, updatedFields?: Record<string, unknown>): Promise<void> {
@@ -566,7 +506,7 @@ export async function notifyBetUpdated(bet: IBet, user?: IUser | null, updatedFi
     }
   }
 
-  await sendMessage(lines.join('\n'), companyId, bet.startTime);
+  await sendMessage(lines.join('\n'), companyId);
 }
 
 export async function notifyBetDeleted(bet: IBet, user?: IUser | null): Promise<void> {
@@ -582,7 +522,7 @@ export async function notifyBetDeleted(bet: IBet, user?: IUser | null): Promise<
     `Odds: ${formatOdds(bet)}`,
   ].join('\n');
 
-  await sendMessage(message, companyId, bet.startTime);
+  await sendMessage(message, companyId);
 }
 
 export async function notifyBetSettled(bet: IBet, result: IBet['result'], user?: IUser | null): Promise<void> {
@@ -669,10 +609,10 @@ export async function notifyBetSettled(bet: IBet, result: IBet['result'], user?:
   // Send to user's webhooks if they have notifyOnSettlement enabled
   const webhookPromises: Promise<void>[] = [];
   if (userForCheck.discordWebhookUrl) {
-    webhookPromises.push(sendWebhookMessage(message, userForCheck.discordWebhookUrl, bet.startTime));
+    webhookPromises.push(sendWebhookMessage(message, userForCheck.discordWebhookUrl));
   }
   if (userForCheck.whopWebhookUrl) {
-    webhookPromises.push(sendWebhookMessage(message, userForCheck.whopWebhookUrl, bet.startTime));
+    webhookPromises.push(sendWebhookMessage(message, userForCheck.whopWebhookUrl));
   }
 
   // Send to all configured webhooks in parallel
