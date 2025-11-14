@@ -280,6 +280,19 @@ export async function POST(request: NextRequest) {
       }, { status: 400 });
     }
 
+    // For admins: validate that their companyId matches an owner's companyId
+    if (user.role === 'admin') {
+      const ownerWithCompanyId = await User.findOne({ 
+        companyId: user.companyId, 
+        role: 'owner'
+      });
+      if (!ownerWithCompanyId) {
+        return NextResponse.json({ 
+          error: 'Invalid Company ID. Your company ID must match an existing owner\'s company ID. Please update your profile with a valid company ID.' 
+        }, { status: 400 });
+      }
+    }
+
     const companyId = user.companyId;
 
     const body = await request.json();

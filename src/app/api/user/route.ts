@@ -171,6 +171,20 @@ export async function PATCH(request: NextRequest) {
             { status: 400 }
           );
         }
+      } else if (user.role === 'admin') {
+        // Admins can only set companyId that matches an existing owner's companyId
+        if (validated.companyId) {
+          const existingOwner = await User.findOne({ 
+            companyId: validated.companyId, 
+            role: 'owner'
+          });
+          if (!existingOwner) {
+            return NextResponse.json(
+              { error: 'Company ID must match an existing owner\'s company ID. Please enter a valid company ID that belongs to an owner.' },
+              { status: 400 }
+            );
+          }
+        }
       }
       user.companyId = validated.companyId || undefined;
     }
