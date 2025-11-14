@@ -12,9 +12,10 @@ export const runtime = 'nodejs';
 function mapSportKeyToSportsData(sportKey: string): string {
   const map: Record<string, string> = {
     'americanfootball_nfl': 'nfl',
-    'americanfootball_ncaaf': 'ncaaf',
+    'americanfootball_ncaaf': 'cfb', // College Football
     'basketball_nba': 'nba',
-    'basketball_ncaab': 'ncaab',
+    'basketball_ncaab': 'cbb', // College Basketball
+    'basketball_ncaaw': 'cwbb', // College Women's Basketball
     'baseball_mlb': 'mlb',
     'icehockey_nhl': 'nhl',
   };

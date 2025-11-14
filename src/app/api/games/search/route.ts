@@ -20,6 +20,8 @@ const SUPPORTED_SPORT_KEYS = new Set([
   'americanfootball_ncaaf',
   // College Basketball
   'basketball_ncaab',
+  // College Women's Basketball
+  'basketball_ncaaw',
   // WNBA
   'basketball_wnba',
   // Golf (various tournaments)
