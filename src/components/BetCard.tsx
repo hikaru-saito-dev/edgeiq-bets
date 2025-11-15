@@ -27,6 +27,7 @@ interface BetCardProps {
     eventName: string;
     startTime: string;
     odds: number;
+    oddsAmerican: number;
     units: number;
     result: 'pending' | 'win' | 'loss' | 'push' | 'void';
     locked: boolean;
@@ -37,6 +38,7 @@ interface BetCardProps {
       _id: string;
       eventName: string;
       startTime: string;
+      oddsAmerican: number;
       marketType: 'ML' | 'Spread' | 'Total' | 'Player Prop';
       selection?: string;
       line?: number;
@@ -162,7 +164,7 @@ export default function BetCard({ bet, onUpdate }: BetCardProps) {
                 Odds
               </Typography>
               <Typography variant="h6" fontWeight={700} sx={{ color: '#ffffff' }}>
-                {bet.odds.toFixed(2)}
+                {bet.oddsAmerican > 0 ? `+${bet.oddsAmerican}` : bet.oddsAmerican}
               </Typography>
             </Box>
             <Box 
