@@ -78,7 +78,7 @@ const UserSchema = new Schema<IUser>({
 
 // Compound indexes for efficient queries
 UserSchema.index({ companyId: 1, whopUserId: 1 }, { unique: true, sparse: true }); // Unique user per company (sparse since companyId can be null)
-UserSchema.index({ companyId: 1, role: 1 }, { unique: true, partialFilterExpression: { role: 'owner', companyId: { $exists: true, $ne: null } } }); // Only 1 owner per companyId
+UserSchema.index({ companyId: 1, role: 1 }, { unique: true, partialFilterExpression: { $or: [ { role: 'owner' }, { role: 'companyOwner' } ], companyId: { $exists: true, $ne: null } } }); // Only 1 owner or companyOwner per companyId
 UserSchema.index({ role: 1 }, { unique: true, partialFilterExpression: { role: 'companyOwner' } }); // Only 1 companyOwner in the entire system
 UserSchema.index({ companyId: 1, optIn: 1, 'stats.roi': -1, 'stats.winRate': -1 }); // For company-scoped leaderboard
 
