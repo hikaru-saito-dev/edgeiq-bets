@@ -176,7 +176,10 @@ export async function PATCH(request: NextRequest) {
         if (validated.companyId) {
           const existingOwner = await User.findOne({ 
             companyId: validated.companyId, 
-            role: 'owner'
+            $or: [
+              { role: 'owner' },
+              { role: 'companyOwner' }
+            ]
           });
           if (!existingOwner) {
             return NextResponse.json(
