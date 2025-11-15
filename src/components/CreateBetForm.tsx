@@ -32,6 +32,7 @@ import SearchIcon from '@mui/icons-material/Search';
 import { useToast } from './ToastProvider';
 import { MarketType } from '@/models/Bet';
 import { americanToDecimal, formatOdds, type OddsFormat } from '@/utils/oddsConverter';
+import { formatDateTimeEST } from '@/utils/dateFormatter';
 
 // Prop types by sport
 const propTypesBySport: Record<string, string[]> = {
@@ -1023,7 +1024,7 @@ export default function CreateBetForm({ open, onClose, onSuccess }: CreateBetFor
                       {option.awayTeam} @ {option.homeTeam}
                     </Typography>
                     <Typography variant="caption" sx={{ color: '#a1a1aa' }}>
-                      {option.league} • {new Date(option.startTime).toLocaleString()}
+                      {option.league} • {formatDateTimeEST(option.startTime)}
                     </Typography>
                   </Box>
                 </Box>

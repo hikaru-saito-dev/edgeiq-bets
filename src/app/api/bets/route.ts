@@ -221,17 +221,43 @@ export async function GET(request: NextRequest) {
       }, {});
     }
 
-    const betsWithLegs = bets.map((bet) =>
-      bet.marketType === 'Parlay'
-        ? {
-            ...bet,
-            parlayLegs: legsByParlayId[String(bet._id)] ?? [],
-          }
-        : bet
-    );
+    // Check and update locked status for all bets (in case startTime has passed)
+    const now = new Date();
+    const betsWithLockedStatus = bets.map((bet) => {
+      const startTime = new Date(bet.startTime);
+      const shouldBeLocked = now >= startTime;
+      const isLocked = bet.locked || shouldBeLocked;
+      
+      // Update locked status in database if it changed (async, don't wait)
+      if (shouldBeLocked && !bet.locked) {
+        Bet.findByIdAndUpdate(bet._id, { locked: true }).catch(() => {
+          // Silently fail - this is just a background update
+        });
+      }
+      
+      return {
+        ...bet,
+        locked: isLocked,
+        ...(bet.marketType === 'Parlay' && {
+          parlayLegs: (legsByParlayId[String(bet._id)] ?? []).map((leg) => {
+            const legStartTime = new Date(leg.startTime);
+            const legShouldBeLocked = now >= legStartTime;
+            if (legShouldBeLocked && !leg.locked) {
+              Bet.findByIdAndUpdate(leg._id, { locked: true }).catch(() => {
+                // Silently fail
+              });
+            }
+            return {
+              ...leg,
+              locked: leg.locked || legShouldBeLocked,
+            };
+          }),
+        }),
+      };
+    });
 
     return NextResponse.json({
-      bets: betsWithLegs,
+      bets: betsWithLockedStatus,
       page,
       pageSize,
       total,
