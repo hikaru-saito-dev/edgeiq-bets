@@ -20,7 +20,6 @@ import CalculateIcon from '@mui/icons-material/Calculate';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import ExpandLessIcon from '@mui/icons-material/ExpandLess';
 import { useToast } from './ToastProvider';
-import { formatDateTimeEST } from '@/utils/dateFormatter';
 
 interface BetCardProps {
   bet: {
@@ -58,11 +57,6 @@ export default function BetCard({ bet, onUpdate }: BetCardProps) {
   const toast = useToast();
   const [loading, setLoading] = useState(false);
   const [showParlayLegs, setShowParlayLegs] = useState(false);
-  
-  // Check if bet should be locked based on current time vs start time
-  const now = new Date();
-  const startTime = new Date(bet.startTime);
-  const isActuallyLocked = bet.locked || now >= startTime;
 
   const getResultColor = () => {
     switch (bet.result) {
@@ -118,14 +112,14 @@ export default function BetCard({ bet, onUpdate }: BetCardProps) {
           mb: 2,
           background: 'linear-gradient(135deg, rgba(15, 15, 35, 0.9), rgba(30, 30, 60, 0.8))',
           backdropFilter: 'blur(20px)',
-          border: isActuallyLocked ? '2px solid rgba(245, 158, 11, 0.5)' : '1px solid rgba(99, 102, 241, 0.3)',
+          border: bet.locked ? '2px solid rgba(245, 158, 11, 0.5)' : '1px solid rgba(99, 102, 241, 0.3)',
           borderRadius: 3,
           boxShadow: '0 8px 32px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.1)',
           transition: 'all 0.3s ease',
           '&:hover': {
             boxShadow: '0 12px 40px rgba(99, 102, 241, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.1)',
             transform: 'translateY(-4px)',
-            borderColor: isActuallyLocked ? 'rgba(245, 158, 11, 0.7)' : 'rgba(99, 102, 241, 0.5)',
+            borderColor: bet.locked ? 'rgba(245, 158, 11, 0.7)' : 'rgba(99, 102, 241, 0.5)',
           }
         }}
       >
@@ -138,7 +132,7 @@ export default function BetCard({ bet, onUpdate }: BetCardProps) {
               <Box display="flex" alignItems="center" gap={1} mb={1}>
                 <EventIcon fontSize="small" sx={{ color: '#a1a1aa' }} />
                 <Typography variant="body2" sx={{ color: '#a1a1aa' }}>
-                  {formatDateTimeEST(bet.startTime)}
+                  {new Date(bet.startTime).toLocaleString()}
                 </Typography>
               </Box>
             </Box>
@@ -277,7 +271,7 @@ export default function BetCard({ bet, onUpdate }: BetCardProps) {
                         {leg.eventName}
                       </Typography>
                       <Typography variant="caption" sx={{ color: '#a1a1aa', display: 'block' }}>
-                        {formatDateTimeEST(leg.startTime)} · {renderLegDescription(leg)}
+                        {new Date(leg.startTime).toLocaleString()} · {renderLegDescription(leg)}
                       </Typography>
                       <Typography variant="caption" sx={{ color: '#94a3b8', display: 'block' }}>
                         Odds / stake included in parlay total
@@ -300,7 +294,9 @@ export default function BetCard({ bet, onUpdate }: BetCardProps) {
             {/* Manual settlement disabled - bets are auto-settled */}
             {/* Delete button, only for bets that are not locked, not settled, and before start time */}
             {bet.result === 'pending' && (() => {
-              const canDelete = !isActuallyLocked && now < startTime;
+              const now = new Date();
+              const startTime = new Date(bet.startTime);
+              const canDelete = !bet.locked && now < startTime;
               
               if (!canDelete) return null;
               
