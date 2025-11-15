@@ -340,9 +340,56 @@ function mapPropTypeToStatField(statType: string, sport: string): string | null 
 
 // Settle a bet based on game results
 async function settleBet(bet: IBet): Promise<'win' | 'loss' | 'push' | 'void' | 'pending'> {
-  // Parlay bets require manual settlement as they involve multiple games/legs
+  // Handle parlay bets - check all legs
   if (bet.marketType === 'Parlay') {
-    return 'pending'; // Parlay bets cannot be auto-settled
+    const parlayId = typeof bet._id === 'string' ? bet._id : bet._id?.toString?.();
+    if (!parlayId) {
+      return 'void';
+    }
+
+    // Find all legs of this parlay
+    const legs = await Bet.find({ parlayId }).lean();
+    
+    if (legs.length === 0) {
+      // No legs found - invalid parlay
+      return 'void';
+    }
+
+    // Check if all legs are settled
+    const allLegsSettled = legs.every(leg => leg.result !== 'pending');
+    
+    if (!allLegsSettled) {
+      // Not all legs are settled yet
+      return 'pending';
+    }
+
+    // All legs are settled - determine parlay result
+    // Standard parlay rules:
+    // - If ANY leg is a loss → parlay loses
+    // - If ANY leg is void → parlay is void
+    // - If ALL legs are wins → parlay wins
+    // - Push legs: Typically, a push reduces the parlay (e.g., 3-leg parlay with 1 push becomes 2-leg parlay)
+    //   For simplicity, we'll treat push as void (parlay becomes void)
+    
+    const hasLoss = legs.some(leg => leg.result === 'loss');
+    const hasVoid = legs.some(leg => leg.result === 'void');
+    const hasPush = legs.some(leg => leg.result === 'push');
+    const allWins = legs.every(leg => leg.result === 'win');
+
+    if (hasLoss) {
+      return 'loss'; // Any loss = parlay loses
+    }
+    
+    if (hasVoid || hasPush) {
+      return 'void'; // Any void or push = parlay is void
+    }
+    
+    if (allWins) {
+      return 'win'; // All wins = parlay wins
+    }
+
+    // Should not reach here, but return void as fallback
+    return 'void';
   }
   
   if (!bet.providerEventId || !bet.sport) {
@@ -604,6 +651,42 @@ export async function POST(request: NextRequest) {
     // Update bet result
     bet.result = result;
     await bet.save();
+
+    // If this is a parlay leg, check if the parent parlay should be settled
+    if (bet.parlayId) {
+      try {
+        const parlayBet = await Bet.findById(bet.parlayId);
+        if (parlayBet && parlayBet.result === 'pending') {
+          // Try to settle the parlay
+          const parlayResult = await settleBet(parlayBet as unknown as IBet);
+          if (parlayResult !== 'pending') {
+            parlayBet.result = parlayResult;
+            await parlayBet.save();
+
+            // Log parlay settlement
+            await Log.create({
+              userId: parlayBet.userId,
+              betId: parlayBet._id,
+              action: 'bet_auto_settled',
+              metadata: { result: parlayResult, triggeredBy: 'leg_settlement' },
+            });
+
+            // Notify parlay settlement
+            const parlayUser = await User.findById(parlayBet.userId);
+            await notifyBetSettled(parlayBet as unknown as IBet, parlayResult, parlayUser ?? undefined);
+
+            // Recalculate stats for parlay user
+            if (parlayUser) {
+              const allParlayBets = await Bet.find({ userId: parlayBet.userId }).lean();
+              await updateUserStats(parlayBet.userId.toString(), allParlayBets as unknown as IBet[]);
+            }
+          }
+        }
+      } catch (error) {
+        console.error('Error settling parent parlay:', error);
+        // Don't fail the leg settlement if parlay check fails
+      }
+    }
 
     // Recalculate user stats
     const user = await User.findById(bet.userId);

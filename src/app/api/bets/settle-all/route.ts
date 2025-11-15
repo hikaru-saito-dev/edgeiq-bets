@@ -456,9 +456,48 @@ function mapPropTypeToStatField(statType: string, sport: string): string | null 
 
 // Settle a bet based on game results
 async function settleBet(bet: IBet): Promise<'win' | 'loss' | 'push' | 'void' | 'pending'> {
-  // Parlay bets require manual settlement as they involve multiple games/legs
+  // Handle parlay bets - check all legs
   if (bet.marketType === 'Parlay') {
-    return 'pending'; // Parlay bets cannot be auto-settled
+    const parlayId = typeof bet._id === 'string' ? bet._id : bet._id?.toString?.();
+    if (!parlayId) {
+      return 'void';
+    }
+
+    // Find all legs of this parlay
+    const legs = await Bet.find({ parlayId }).lean();
+    
+    if (legs.length === 0) {
+      // No legs found - invalid parlay
+      return 'void';
+    }
+
+    // Check if all legs are settled
+    const allLegsSettled = legs.every(leg => leg.result !== 'pending');
+    
+    if (!allLegsSettled) {
+      // Not all legs are settled yet
+      return 'pending';
+    }
+    
+    const hasLoss = legs.some(leg => leg.result === 'loss');
+    const hasVoid = legs.some(leg => leg.result === 'void');
+    const hasPush = legs.some(leg => leg.result === 'push');
+    const allWins = legs.every(leg => leg.result === 'win');
+
+    if (hasLoss) {
+      return 'loss'; // Any loss = parlay loses
+    }
+    
+    if (hasVoid || hasPush) {
+      return 'void'; // Any void or push = parlay is void
+    }
+    
+    if (allWins) {
+      return 'win'; // All wins = parlay wins
+    }
+
+    // Should not reach here, but return void as fallback
+    return 'void';
   }
   
   if (!bet.providerEventId || !bet.sport) {
@@ -664,11 +703,22 @@ export async function POST() {
     // For now, we'll allow it to be called (you may want to add a secret key check)
 
     // Find all pending bets where the event has started
+    // Include both regular bets and parlay bets (parlays will be checked for all legs being settled)
     const now = new Date();
     const pendingBets = await Bet.find({
       result: 'pending',
-      startTime: { $lte: now },
-      providerEventId: { $exists: true, $ne: null },
+      $or: [
+        // Regular bets: must have started
+        {
+          startTime: { $lte: now },
+          providerEventId: { $exists: true, $ne: null },
+          marketType: { $ne: 'Parlay' },
+        },
+        // Parlay bets: check if all legs are settled (no startTime requirement for parlay itself)
+        {
+          marketType: 'Parlay',
+        },
+      ],
     });
 
     const results = {
@@ -677,6 +727,9 @@ export async function POST() {
       errors: 0,
       details: [] as Array<{ betId: string; result: string; error?: string }>,
     };
+
+    // Track parlay IDs that might need settlement after legs are settled
+    const parlayIdsToCheck = new Set<string>();
 
     for (const bet of pendingBets) {
       try {
@@ -696,6 +749,14 @@ export async function POST() {
           const user = await User.findById(bet.userId);
           if (!bet.parlayId) {
             await notifyBetSettled(bet as unknown as IBet, result, user ?? undefined);
+          } else {
+            // Track parlay ID to check after all legs are processed
+            const parlayIdStr = typeof bet.parlayId === 'string' 
+              ? bet.parlayId 
+              : bet.parlayId?.toString?.() || '';
+            if (parlayIdStr) {
+              parlayIdsToCheck.add(parlayIdStr);
+            }
           }
 
           results.settled++;
@@ -714,9 +775,56 @@ export async function POST() {
       }
     }
 
+    // Check and settle parlays whose legs were just settled
+    for (const parlayIdStr of parlayIdsToCheck) {
+      try {
+        const parlayBet = await Bet.findById(parlayIdStr);
+        if (parlayBet && parlayBet.result === 'pending') {
+          const parlayResult = await settleBet(parlayBet as unknown as IBet);
+          if (parlayResult !== 'pending') {
+            parlayBet.result = parlayResult;
+            await parlayBet.save();
+
+            await Log.create({
+              userId: parlayBet.userId,
+              betId: parlayBet._id,
+              action: 'bet_auto_settled',
+              metadata: { result: parlayResult, triggeredBy: 'leg_settlement' },
+            });
+
+            const parlayUser = await User.findById(parlayBet.userId);
+            await notifyBetSettled(parlayBet as unknown as IBet, parlayResult, parlayUser ?? undefined);
+
+            results.settled++;
+            results.details.push({ betId: parlayIdStr, result: parlayResult });
+          }
+        }
+      } catch (error) {
+        console.error(`Error settling parlay ${parlayIdStr}:`, error);
+        results.errors++;
+        results.details.push({ 
+          betId: parlayIdStr, 
+          result: 'error',
+          error: error instanceof Error ? error.message : 'Unknown error',
+        });
+      }
+    }
+
     // Recalculate stats for all affected users
     const affectedUserIds = [...new Set(pendingBets.map(b => b.userId.toString()))];
-    for (const userId of affectedUserIds) {
+    // Also include parlay bet user IDs
+    for (const parlayIdStr of parlayIdsToCheck) {
+      try {
+        const parlayBet = await Bet.findById(parlayIdStr);
+        if (parlayBet) {
+          affectedUserIds.push(parlayBet.userId.toString());
+        }
+      } catch {
+        // Ignore errors
+      }
+    }
+    const uniqueUserIds = [...new Set(affectedUserIds)];
+    for (const userId of uniqueUserIds) {
       try {
         const allBets = await Bet.find({ userId }).lean();
         await updateUserStats(userId, allBets as unknown as IBet[]);
