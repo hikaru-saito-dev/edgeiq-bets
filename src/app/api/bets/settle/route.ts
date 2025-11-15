@@ -173,8 +173,41 @@ async function getPlayerStats(
       } else {
         console.warn(`Failed to fetch NFL player stats: ${response.status} ${response.statusText}`);
       }
+    } else if (sportPath === 'nba' || sportPath === 'mlb') {
+      // For NBA/MLB, use PlayerPropsByPlayerID endpoint
+      // This API returns an array of prop objects with Description and StatResult
+      try {
+        const url = `https://api.sportsdata.io/v3/${sportPath}/odds/json/PlayerPropsByPlayerID/${dateStr}/${playerId}?key=${apiKey}`;
+        const response = await fetch(url, {
+          next: { revalidate: 3600 },
+        });
+
+        if (response.ok) {
+          const props = await response.json();
+          
+          // The API returns an array of prop objects
+          if (Array.isArray(props)) {
+            // Verify it's for the correct player and date
+            const validProps = props.filter((prop: { PlayerID?: number; DateTime?: string }) => {
+              if (prop.PlayerID !== playerId) return false;
+              if (prop.DateTime) {
+                const propDate = prop.DateTime.split('T')[0]; // Extract date part
+                return propDate === dateStr;
+              }
+              return true;
+            });
+            
+            if (validProps.length > 0) {
+              // Return as a special structure that includes the Description field
+              return { _playerPropsArray: validProps } as unknown as Record<string, number>;
+            }
+          }
+        }
+      } catch (error) {
+        console.warn(`Failed to fetch ${sportPath.toUpperCase()} player props:`, error);
+      }
     } else {
-      // For NBA, MLB, NHL - try PlayerGameStatsByDate endpoint first
+      // For NHL and other sports - try PlayerGameStatsByDate endpoint first
       // This endpoint returns all player stats for a specific date
       try {
         const url = `https://api.sportsdata.io/v3/${sportPath}/stats/json/PlayerGameStatsByDate/${dateStr}?key=${apiKey}`;
@@ -342,7 +375,71 @@ async function settleBet(bet: IBet): Promise<'win' | 'loss' | 'push' | 'void' | 
       return 'pending'; // Stats not available yet
     }
 
-    // Map prop type to stat field
+    // For NBA/MLB, the API returns player props array structure
+    if ((sportPath === 'nba' || sportPath === 'mlb') && (playerStats as unknown as { _playerPropsArray?: unknown })._playerPropsArray) {
+      const propsArray = (playerStats as unknown as { 
+        _playerPropsArray: Array<{ 
+          Description: string; 
+          StatResult: number | null; 
+          OverUnder: number;
+        }> 
+      })._playerPropsArray;
+      
+      // Map bet statType to API Description field
+      // API returns: Points, Rebounds, Assists, Steals, Three Pointers Made, 
+      // Points + Rebounds + Assists, Points + Rebounds, Points + Assists, etc.
+      const descriptionMap: Record<string, string> = {
+        'Points': 'Points',
+        'Rebounds': 'Rebounds',
+        'Assists': 'Assists',
+        'Points + Rebounds + Assists (PRA)': 'Points + Rebounds + Assists',
+        'PRA': 'Points + Rebounds + Assists', // NCAA Basketball uses 'PRA'
+        '3-Pointers Made': 'Three Pointers Made',
+        'Steals': 'Steals',
+        'Blocks': 'Blocks', // Note: May not be in all API responses
+        'Turnovers': 'Turnovers', // Note: May not be in all API responses
+        // MLB mappings
+        'Hits': 'Hits',
+        'Home Runs': 'Home Runs',
+        'RBIs': 'RBIs',
+        'Runs': 'Runs',
+        'Total Bases': 'Total Bases',
+        'Stolen Bases': 'Stolen Bases',
+        'Pitcher Strikeouts': 'Pitcher Strikeouts',
+        'Pitcher Outs Recorded': 'Pitcher Outs Recorded',
+        'Walks Drawn': 'Walks Drawn',
+      };
+      
+      const apiDescription = descriptionMap[bet.statType] || bet.statType;
+      const prop = propsArray.find(p => p.Description === apiDescription);
+      
+      if (!prop) {
+        console.warn(`Stat type "${bet.statType}" not found in player props for player ${playerId}`);
+        return 'void';
+      }
+      
+      // StatResult is null if the game hasn't been settled yet
+      if (prop.StatResult === null || prop.StatResult === undefined) {
+        return 'pending';
+      }
+      
+      const actualStat = prop.StatResult;
+      const line = bet.line;
+      
+      if (bet.overUnder === 'Over') {
+        if (actualStat > line) return 'win';
+        if (actualStat < line) return 'loss';
+        return 'push';
+      } else if (bet.overUnder === 'Under') {
+        if (actualStat < line) return 'win';
+        if (actualStat > line) return 'loss';
+        return 'push';
+      }
+      
+      return 'void';
+    }
+
+    // For other sports (NFL, CFB, CBB, NHL), use the standard stat field mapping
     const statField = mapPropTypeToStatField(bet.statType, sportPath);
     if (!statField) {
       console.warn(`Unknown stat type: ${bet.statType} for sport: ${sportPath}`);
