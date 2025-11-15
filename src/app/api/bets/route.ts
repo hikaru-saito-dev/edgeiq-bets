@@ -284,7 +284,10 @@ export async function POST(request: NextRequest) {
     if (user.role === 'admin') {
       const ownerWithCompanyId = await User.findOne({ 
         companyId: user.companyId, 
-        role: 'owner'
+        $or: [
+          { role: 'owner' },
+          { role: 'companyOwner' }
+        ]
       });
       if (!ownerWithCompanyId) {
         return NextResponse.json({ 

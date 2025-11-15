@@ -162,7 +162,10 @@ export async function PATCH(request: NextRequest) {
         // Check if another owner already exists for this companyId
         const existingOwner = await User.findOne({ 
           companyId: validated.companyId, 
-          role: 'owner',
+          $or: [
+            { role: 'owner' },
+            { role: 'companyOwner' }
+          ],
           _id: { $ne: user._id }
         });
         if (existingOwner) {
